@@ -4,7 +4,24 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
+  "license": "MIT",
   "description": "EnfinitOS Auditor/Verifier SDK — cryptographic verification library that regulators, auditors, courts, and third parties use to verify signed proof packs issued by EnfinitOS without trusting the vendor. Parses signed proof packs, verifies Ed25519 signatures against published verification keys, walks the proof hash-chain, re-projects proof into metering, and re-computes settlement reconciliation to confirm the platform's numbers reconcile from first principles.",
+  "homepage": "https://github.com/enfinitos/auditor",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enfinitos/auditor.git",
+    "directory": "packages/sdks/auditor-ts"
+  },
+  "bugs": "https://github.com/enfinitos/auditor/issues",
+  "keywords": [
+    "audit",
+    "verification",
+    "proof",
+    "ed25519",
+    "hash-chain",
+    "compliance",
+    "enfinitos"
+  ],
   "scripts": {
     "dev": "echo sdk-auditor",
     "build": "echo sdk-auditor",
