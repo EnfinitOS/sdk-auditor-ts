@@ -1,0 +1,24 @@
+{
+  "name": "@enfinitos/sdk-auditor",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "description": "EnfinitOS Auditor/Verifier SDK — cryptographic verification library that regulators, auditors, courts, and third parties use to verify signed proof packs issued by EnfinitOS without trusting the vendor. Parses signed proof packs, verifies Ed25519 signatures against published verification keys, walks the proof hash-chain, re-projects proof into metering, and re-computes settlement reconciliation to confirm the platform's numbers reconcile from first principles.",
+  "scripts": {
+    "dev": "echo sdk-auditor",
+    "build": "echo sdk-auditor",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "vitest": "^2.1.0"
+  }
+}

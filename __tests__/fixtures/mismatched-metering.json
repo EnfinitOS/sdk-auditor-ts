@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "metering.v1",
+  "orgId": "org_test",
+  "periodStart": "2026-04-01T12:00:00.000Z",
+  "periodEnd": "2026-04-01T13:00:00.000Z",
+  "records": [
+    {
+      "idemKey": "0000000000000000000000000000000000000000000000000000000000000000",
+      "proofReceiptId": "rec_001",
+      "unitType": "DWELL_SECONDS",
+      "unitCount": "9999.999999",
+      "weight": "1.000000",
+      "spatialAnchorId": "anchor_A",
+      "spatialPlacementId": "place_A",
+      "observedAt": "2026-04-01T11:59:59.000Z",
+      "status": "PROJECTED"
+    }
+  ],
+  "totals": {
+    "DWELL_SECONDS": "9999.999999",
+    "IMPRESSION_IN_PLACE": "0.000000",
+    "ATTENTION_SECONDS": "0.000000",
+    "OCCUPANCY_WEIGHTED_EXPOSURE": "0.000000",
+    "COMPLIANT_DELIVERY_MINUTE": "0.000000",
+    "CUSTOM": "0.000000"
+  }
+}

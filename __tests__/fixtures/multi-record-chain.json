@@ -1,0 +1,69 @@
+{
+  "envelopeVersion": "envelope.v1",
+  "issuedAt": "2026-04-01T13:00:00.000Z",
+  "orgId": "org_test",
+  "packId": "pack_multi",
+  "label": "3-record chain (placeholder signatures)",
+  "records": [
+    {
+      "payload": {
+        "version": "1",
+        "receiptId": "rec_000",
+        "correlationId": null,
+        "spatialAnchorId": "anchor_0",
+        "spatialPlacementId": null,
+        "issuedAt": "2026-04-01T12:00:00.000Z",
+        "renderedAt": "2026-04-01T11:59:00.000Z",
+        "dwellMs": 1000,
+        "nonce": "nonce_0",
+        "witness": null
+      },
+      "keyId": "fixture_key_v1",
+      "algorithm": "ed25519",
+      "signature": "PLACEHOLDER_SIGNATURE_0",
+      "payloadCanonical": "PLACEHOLDER_CANONICAL_0",
+      "beforeHash": null,
+      "afterHash": "PLACEHOLDER_AFTER_HASH_0"
+    },
+    {
+      "payload": {
+        "version": "1",
+        "receiptId": "rec_001",
+        "correlationId": null,
+        "spatialAnchorId": "anchor_1",
+        "spatialPlacementId": null,
+        "issuedAt": "2026-04-01T12:01:00.000Z",
+        "renderedAt": "2026-04-01T11:59:01.000Z",
+        "dwellMs": 1250,
+        "nonce": "nonce_1",
+        "witness": null
+      },
+      "keyId": "fixture_key_v1",
+      "algorithm": "ed25519",
+      "signature": "PLACEHOLDER_SIGNATURE_1",
+      "payloadCanonical": "PLACEHOLDER_CANONICAL_1",
+      "beforeHash": "PLACEHOLDER_AFTER_HASH_0",
+      "afterHash": "PLACEHOLDER_AFTER_HASH_1"
+    },
+    {
+      "payload": {
+        "version": "1",
+        "receiptId": "rec_002",
+        "correlationId": null,
+        "spatialAnchorId": "anchor_2",
+        "spatialPlacementId": null,
+        "issuedAt": "2026-04-01T12:02:00.000Z",
+        "renderedAt": "2026-04-01T11:59:02.000Z",
+        "dwellMs": 1500,
+        "nonce": "nonce_2",
+        "witness": null
+      },
+      "keyId": "fixture_key_v1",
+      "algorithm": "ed25519",
+      "signature": "PLACEHOLDER_SIGNATURE_2",
+      "payloadCanonical": "PLACEHOLDER_CANONICAL_2",
+      "beforeHash": "PLACEHOLDER_AFTER_HASH_1",
+      "afterHash": "PLACEHOLDER_AFTER_HASH_2"
+    }
+  ]
+}
