@@ -24,7 +24,7 @@
 // stay inside the report. If no, it's an operational error and we
 // throw.
 
-import type { AuditReasonCode } from "./types.js";
+import type { AuditReasonCode } from "./types";
 
 /**
  * AuditorError — thrown only for operational failures the SDK could

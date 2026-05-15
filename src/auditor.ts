@@ -26,22 +26,22 @@
 // regulator review room, or inside a third-party compliance tool, and
 // produce identical structured verdicts.
 
-import { AuditorError, asAuditorError } from "./errors.js";
+import { AuditorError, asAuditorError } from "./errors";
 import {
   loadKeyDirectory,
   KeyDirectory,
   type FetchLike,
   type VerificationKeySourceKind,
-} from "./keys.js";
-import { verifyMeteringProjection } from "./meteringAudit.js";
-import { verifyProofChain } from "./proofChain.js";
+} from "./keys";
+import { verifyMeteringProjection } from "./meteringAudit";
+import { verifyProofChain } from "./proofChain";
 import {
   parseSignedProofPack,
   verifyProofRecord,
   defaultSignatureVerifier,
   type SignatureVerifier,
-} from "./proofPack.js";
-import { verifySettlementReconciliation } from "./settlementAudit.js";
+} from "./proofPack";
+import { verifySettlementReconciliation } from "./settlementAudit";
 import {
   SDK_VERSION,
   type AuditBundle,
@@ -58,7 +58,7 @@ import {
   type SettlementSummary,
   type SignedProofPack,
   type VerificationKey,
-} from "./types.js";
+} from "./types";
 
 // ─────────────────────────────────────────────────────────────────────
 // Construction options

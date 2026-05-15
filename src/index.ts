@@ -1,7 +1,7 @@
 // @enfinitos/sdk-auditor — public surface.
 
-export { EnfinitOSAuditor } from "./auditor.js";
-export type { EnfinitOSAuditorOptions } from "./auditor.js";
+export { EnfinitOSAuditor } from "./auditor";
+export type { EnfinitOSAuditorOptions } from "./auditor";
 
 export {
   parseSignedProofPack,
@@ -10,13 +10,13 @@ export {
   NobleEd25519Verifier,
   NodeCryptoEd25519Verifier,
   type SignatureVerifier,
-} from "./proofPack.js";
+} from "./proofPack";
 
-export { verifyProofChain } from "./proofChain.js";
+export { verifyProofChain } from "./proofChain";
 
-export { verifyMeteringProjection } from "./meteringAudit.js";
+export { verifyMeteringProjection } from "./meteringAudit";
 
-export { verifySettlementReconciliation } from "./settlementAudit.js";
+export { verifySettlementReconciliation } from "./settlementAudit";
 
 export {
   loadKeyDirectory,
@@ -26,7 +26,7 @@ export {
   type KeyDirectorySnapshot,
   type KeyLookupResult,
   type VerificationKeySourceKind,
-} from "./keys.js";
+} from "./keys";
 
 export {
   canonicaliseProofPayload,
@@ -35,7 +35,7 @@ export {
   base64UrlDecode,
   base64UrlEncode,
   sha256Prefixed,
-} from "./canonicalJson.js";
+} from "./canonicalJson";
 
 export {
   sha256Hex,
@@ -44,10 +44,10 @@ export {
   settlementIdemKey,
   constantTimeEqual,
   constantTimeHexEqual,
-} from "./hashing.js";
+} from "./hashing";
 
-export { AuditorError, asAuditorError } from "./errors.js";
-export type { AuditorErrorCode } from "./errors.js";
+export { AuditorError, asAuditorError } from "./errors";
+export type { AuditorErrorCode } from "./errors";
 
 export {
   SDK_VERSION,
@@ -77,4 +77,4 @@ export {
   type SignatureAlgorithm,
   type SignedProofPack,
   type VerificationKey,
-} from "./types.js";
+} from "./types";

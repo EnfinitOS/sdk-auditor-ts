@@ -37,7 +37,7 @@
 // version in the schema so a platform-side bump triggers an explicit
 // audit-SDK upgrade.
 
-import { settlementIdemKey } from "./hashing.js";
+import { settlementIdemKey } from "./hashing";
 import {
   SDK_VERSION,
   type AuditStep,
@@ -45,7 +45,7 @@ import {
   type SettlementAuditReport,
   type SettlementLine,
   type SettlementSummary,
-} from "./types.js";
+} from "./types";
 
 /**
  * verifySettlementReconciliation — re-derive every settlement line

@@ -43,7 +43,7 @@
 // nulls (which is what JSON.stringify defaults to for NaN/Infinity).
 
 import { sha256 as nobleSha256 } from "@noble/hashes/sha256";
-import type { ProofReceiptPayload } from "./types.js";
+import type { ProofReceiptPayload } from "./types";
 
 // Single TextEncoder instance — UTF-8 is the only encoding the SDK
 // uses for canonical bytes. Pinning it here makes the conversion

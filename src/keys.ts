@@ -25,12 +25,12 @@ import {
   AuditorError,
   asAuditorError,
   type AuditorErrorCode,
-} from "./errors.js";
+} from "./errors";
 import type {
   RuntimeKeysResponse,
   SignatureAlgorithm,
   VerificationKey,
-} from "./types.js";
+} from "./types";
 
 // ─────────────────────────────────────────────────────────────────────
 // Public types

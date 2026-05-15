@@ -36,8 +36,8 @@ import type {
   AuditStep,
   ChainAuditReport,
   ProofRecord,
-} from "./types.js";
-import { SDK_VERSION } from "./types.js";
+} from "./types";
+import { SDK_VERSION } from "./types";
 
 /**
  * verifyProofChain — walk records in array order, verify the three

@@ -48,10 +48,10 @@ import {
   base64UrlDecode,
   canonicaliseProofPayload,
   canonicaliseProofSigningInput,
-} from "./canonicalJson.js";
-import { AuditorError } from "./errors.js";
-import { constantTimeHexEqual, sha256Hex } from "./hashing.js";
-import { KeyDirectory } from "./keys.js";
+} from "./canonicalJson";
+import { AuditorError } from "./errors";
+import { constantTimeHexEqual, sha256Hex } from "./hashing";
+import { KeyDirectory } from "./keys";
 import {
   SUPPORTED_ENVELOPE_VERSIONS,
   SUPPORTED_SIGNATURE_ALGORITHMS,
@@ -61,7 +61,7 @@ import {
   type ProofRecord,
   type SignedProofPack,
   type VerificationKey,
-} from "./types.js";
+} from "./types";
 
 // ─────────────────────────────────────────────────────────────────────
 // Parsing

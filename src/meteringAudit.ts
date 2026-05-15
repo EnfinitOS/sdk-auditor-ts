@@ -36,7 +36,7 @@
 // declared on the Prisma schema and noted in the platform's
 // commerce ADR.
 
-import { sha256Hex } from "./hashing.js";
+import { sha256Hex } from "./hashing";
 import {
   type AuditStep,
   type MeterRecord,
@@ -45,7 +45,7 @@ import {
   type ProofReceiptPayload,
   type ProjectionAuditReport,
   SDK_VERSION,
-} from "./types.js";
+} from "./types";
 
 const DECIMAL_PLACES = 6;
 
