@@ -1,6 +1,13 @@
 // @enfinitos/sdk-auditor — hash helpers.
 //
-// The auditor SDK uses sha256 in three slightly different shapes, and
+// Web-compatible by default. The SDK ships SHA-256 via @noble/hashes
+// — pure TypeScript, no native bindings, audited, runs in Node /
+// browsers / Cloudflare Workers / Deno / Bun. The previous version
+// of this file required `node:crypto`, which made the auditor
+// unusable in a browser tab; that was the wrong default for a
+// library whose job is to verify proof packs *anywhere*.
+//
+// The auditor SDK uses sha256 in four slightly different shapes, and
 // keeping them distinct matters because the platform does too:
 //
 //   1. **Plain hex.**   ProofRecord.afterHash is `sha256(payloadCanonical)`
@@ -22,16 +29,33 @@
 // it removes a class of bugs where the wrong prefix flavour gets used
 // for the wrong artefact.
 
-import { createHash } from "node:crypto";
+import { sha256 as nobleSha256 } from "@noble/hashes/sha256";
+
+// Single TextEncoder instance — UTF-8 is the only encoding the SDK
+// uses and pinning it here makes the byte-input policy unambiguous.
+const TEXT_ENCODER = new TextEncoder();
+
+const HEX_ALPHABET = "0123456789abcdef";
+
+function bytesToHex(bytes: Uint8Array): string {
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]!;
+    out += HEX_ALPHABET[(b >> 4) & 0xf];
+    out += HEX_ALPHABET[b & 0xf];
+  }
+  return out;
+}
 
 /**
  * sha256 hex of a string — the raw form. Matches Node's
- * `createHash("sha256").update(s).digest("hex")` exactly.
+ * `createHash("sha256").update(s).digest("hex")` exactly, and
+ * @noble/hashes is byte-equivalent across runtimes.
  *
  * Used directly for ProofRecord.afterHash verification.
  */
 export function sha256Hex(input: string): string {
-  return createHash("sha256").update(input).digest("hex");
+  return bytesToHex(nobleSha256(TEXT_ENCODER.encode(input)));
 }
 
 /**
@@ -83,13 +107,10 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
 
 /**
  * Constant-time hex-string comparison — wraps constantTimeEqual after
- * decoding from hex. Throws if either side is not valid hex.
+ * encoding the strings to UTF-8 bytes. Length-prefixed early-out is
+ * already constant-time (length is non-secret).
  */
 export function constantTimeHexEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
-  // Hex is single-byte-per-2-chars; safe to encode as ASCII
-  return constantTimeEqual(
-    new Uint8Array(Buffer.from(a, "utf8")),
-    new Uint8Array(Buffer.from(b, "utf8")),
-  );
+  return constantTimeEqual(TEXT_ENCODER.encode(a), TEXT_ENCODER.encode(b));
 }

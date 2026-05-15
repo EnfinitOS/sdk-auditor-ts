@@ -23,13 +23,26 @@
 //    outside validity window, or revoked.
 // 6. Call the underlying Ed25519 verify primitive.
 //
-// We import `@noble/ed25519` lazily — the dependency is the canonical
-// choice (audited, no native bindings, browser+node+deno) — but if a
-// host has Node 14+ available we can also offer a fallback path via
-// `node:crypto.verify`. The default is noble; the alternate is a
-// pluggable backend the caller can swap in.
+// We import `@noble/ed25519` statically — it's a real dependency,
+// audited, browser+node+deno+workers safe, no native bindings. The
+// previous version dynamic-imported it and fell back to `node:crypto`
+// when the import failed, which let the SDK keep working in
+// stripped-down Node builds but made it unusable in browsers (because
+// `node:crypto` doesn't exist there and the dynamic-import-then-
+// fallback path leaked a `Buffer` reference on every verify).
+//
+// A NodeCryptoEd25519Verifier remains exported below for callers who
+// explicitly want the Node-only path (FIPS-validated builds, etc.),
+// but it's opt-in. The default verifier is Noble + Web crypto.
 
-import { createPublicKey, verify as nodeCryptoVerify } from "node:crypto";
+import * as ed from "@noble/ed25519";
+import { sha512 as nobleSha512 } from "@noble/hashes/sha512";
+
+// Configure @noble/ed25519 v2's required SHA-512 hook once at module
+// load. Noble v2 deliberately doesn't bundle a SHA-512 impl; the
+// recommended path is to inject @noble/hashes here.
+ed.etc.sha512Sync = (...m: Uint8Array[]) =>
+  nobleSha512(ed.etc.concatBytes(...m));
 
 import {
   base64UrlDecode,
@@ -250,95 +263,41 @@ export interface SignatureVerifier {
 }
 
 /**
- * Node `crypto.verify`-based Ed25519 verifier. Used when the
- * platform isn't running in an environment with @noble/ed25519
- * resolved (e.g. a strict zero-dep build) — it relies only on Node
- * 14+.
+ * NobleEd25519Verifier — uses @noble/ed25519 directly (no dynamic
+ * import). Runs in every supported runtime: Node 16+, browsers,
+ * Cloudflare Workers, Deno, Bun. This is the SDK's default verifier.
  *
- * The public key is supplied as 32 raw bytes; we wrap it in a SPKI
- * DER envelope inline so the Node API accepts it.
- */
-export class NodeCryptoEd25519Verifier implements SignatureVerifier {
-  async verifyEd25519(
-    publicKey: Uint8Array,
-    message: Uint8Array,
-    signature: Uint8Array,
-  ): Promise<boolean> {
-    if (publicKey.length !== 32) return false;
-    if (signature.length !== 64) return false;
-    // SPKI prefix for Ed25519:
-    //   30 2a              SEQUENCE (42 bytes)
-    //     30 05            SEQUENCE (5 bytes)
-    //       06 03 2b6570   OID 1.3.101.112 (id-Ed25519)
-    //     03 21 00         BIT STRING (33 bytes), zero unused bits
-    //     <32 raw key bytes>
-    const spki = Buffer.concat([
-      Buffer.from([
-        0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
-      ]),
-      Buffer.from(publicKey),
-    ]);
-    const keyObject = createPublicKey({
-      key: spki,
-      format: "der",
-      type: "spki",
-    });
-    return nodeCryptoVerify(null, message, keyObject, signature);
-  }
-}
-
-/**
- * NobleEd25519Verifier — uses @noble/ed25519 if importable. Falls
- * through to NodeCrypto if the package isn't resolvable in the
- * current environment.
- *
- * The dynamic import here is deliberate: `@noble/ed25519` is the
- * spec-mandated default, but the SDK should remain runnable in a
- * stripped build that only has Node `crypto`. If the import fails
- * at runtime we cache that and never retry — auditors deserve a
- * predictable single fallback path.
+ * The previous version of this class dynamic-imported @noble/ed25519
+ * and fell back to `node:crypto` — which made the SDK unusable in
+ * browsers because the fallback path always loaded, even when noble
+ * had already been bundled. Pinning noble statically removes the
+ * fallback's existence as a constraint and lets the bundle ship
+ * cleanly to the edge.
  */
 export class NobleEd25519Verifier implements SignatureVerifier {
-  private mod: { verifyAsync?: VerifyAsync; verify?: VerifyAsync } | null = null;
-  private resolved = false;
-  private readonly fallback = new NodeCryptoEd25519Verifier();
-
   async verifyEd25519(
     publicKey: Uint8Array,
     message: Uint8Array,
     signature: Uint8Array,
   ): Promise<boolean> {
-    if (!this.resolved) {
-      try {
-        // @ts-expect-error — dynamic optional dep
-        this.mod = await import("@noble/ed25519");
-      } catch {
-        this.mod = null;
-      }
-      this.resolved = true;
+    if (publicKey.length !== 32 || signature.length !== 64) return false;
+    try {
+      return ed.verify(signature, message, publicKey);
+    } catch {
+      // Any malformed input — non-canonical signature, invalid curve
+      // point, etc. — fails closed. Auditors expect a boolean, not
+      // a thrown exception path.
+      return false;
     }
-    if (this.mod) {
-      const fn = this.mod.verifyAsync ?? this.mod.verify;
-      if (fn) {
-        try {
-          return await fn(signature, message, publicKey);
-        } catch {
-          return false;
-        }
-      }
-    }
-    return this.fallback.verifyEd25519(publicKey, message, signature);
   }
 }
-
-type VerifyAsync = (
-  signature: Uint8Array,
-  message: Uint8Array,
-  publicKey: Uint8Array,
-) => Promise<boolean>;
 
 /**
  * Default verifier — exported as the SDK's preferred backend.
+ *
+ * Callers can override by passing a custom `SignatureVerifier` to
+ * `verifyProofPack` / `verifyAll`, e.g. to wire in a FIPS-validated
+ * native Ed25519 implementation in regulated environments.
  */
 export const defaultSignatureVerifier: SignatureVerifier = new NobleEd25519Verifier();
 

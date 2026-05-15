@@ -42,8 +42,24 @@
 // receipt, but if they do we throw rather than silently emit JSON
 // nulls (which is what JSON.stringify defaults to for NaN/Infinity).
 
-import { createHash } from "node:crypto";
+import { sha256 as nobleSha256 } from "@noble/hashes/sha256";
 import type { ProofReceiptPayload } from "./types.js";
+
+// Single TextEncoder instance — UTF-8 is the only encoding the SDK
+// uses for canonical bytes. Pinning it here makes the conversion
+// policy explicit and unambiguous.
+const TEXT_ENCODER = new TextEncoder();
+
+const HEX_ALPHABET = "0123456789abcdef";
+function bytesToHex(bytes: Uint8Array): string {
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]!;
+    out += HEX_ALPHABET[(b >> 4) & 0xf];
+    out += HEX_ALPHABET[b & 0xf];
+  }
+  return out;
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Field-ordered encoder — exact platform parity for ProofReceiptPayload
@@ -168,24 +184,35 @@ export function canonicalSortKeys(value: unknown): string {
  *   - "+" → "-"
  *   - "/" → "_"
  *   - trailing "=" stripped
+ *
+ * Uses `btoa` rather than Node's `Buffer` so the SDK runs in
+ * browsers and Cloudflare Workers without a polyfill. Building the
+ * binary string in 32K chunks avoids the call-stack blow-up
+ * `String.fromCharCode(...verylarge)` is famous for.
  */
 export function base64UrlEncode(bytes: Uint8Array): string {
-  return Buffer.from(bytes)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    const slice = bytes.subarray(i, Math.min(i + chunk, bytes.length));
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**
  * Base64url-decode. Accepts both padded and unpadded input. Returns
- * a Uint8Array (NOT a Buffer) so we avoid leaking the Node-specific
- * Buffer type out of this module.
+ * a Uint8Array so the public API stays runtime-neutral.
  */
 export function base64UrlDecode(s: string): Uint8Array {
   const padded = s + "=".repeat((4 - (s.length % 4)) % 4);
   const normal = padded.replace(/-/g, "+").replace(/_/g, "/");
-  return new Uint8Array(Buffer.from(normal, "base64"));
+  const binary = atob(normal);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    out[i] = binary.charCodeAt(i);
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -214,6 +241,5 @@ function assertFiniteOrThrow(n: number, label: string): void {
  * and pairs naturally with the encoder.
  */
 export function sha256Prefixed(canonical: string): string {
-  const hex = createHash("sha256").update(canonical).digest("hex");
-  return `sha256:${hex}`;
+  return `sha256:${bytesToHex(nobleSha256(TEXT_ENCODER.encode(canonical)))}`;
 }
