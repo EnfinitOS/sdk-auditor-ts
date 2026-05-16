@@ -293,6 +293,54 @@ export class NobleEd25519Verifier implements SignatureVerifier {
 }
 
 /**
+ * NodeCryptoEd25519Verifier — uses Node's built-in `node:crypto`
+ * Ed25519 implementation. Opt-in for callers that explicitly want
+ * the Node-only path (e.g. FIPS-validated builds, security policies
+ * that disallow non-stdlib crypto). NOT usable in browsers or
+ * Cloudflare Workers — those should keep the default Noble path.
+ *
+ * The verifier dynamic-imports `node:crypto` so that bundlers
+ * targeting non-Node runtimes don't choke on the import when this
+ * class is never instantiated. Instantiating it on a non-Node
+ * runtime returns `false` from `verifyEd25519`.
+ */
+export class NodeCryptoEd25519Verifier implements SignatureVerifier {
+  async verifyEd25519(
+    publicKey: Uint8Array,
+    message: Uint8Array,
+    signature: Uint8Array,
+  ): Promise<boolean> {
+    if (publicKey.length !== 32 || signature.length !== 64) return false;
+    try {
+      // Dynamic-import so non-Node bundles tree-shake this away.
+      const nodeCrypto = await import("node:crypto");
+      // Wrap the raw 32-byte Ed25519 public key in its fixed SPKI
+      // DER prefix so Node's `createPublicKey` can ingest it without
+      // requiring callers to hand-roll the DER themselves.
+      const SPKI_PREFIX = Buffer.from(
+        "302a300506032b6570032100",
+        "hex",
+      );
+      const spkiDer = Buffer.concat([SPKI_PREFIX, Buffer.from(publicKey)]);
+      const keyObj = nodeCrypto.createPublicKey({
+        key: spkiDer,
+        format: "der",
+        type: "spki",
+      });
+      return nodeCrypto.verify(
+        null,
+        Buffer.from(message),
+        keyObj,
+        Buffer.from(signature),
+      );
+    } catch {
+      // Any malformed input or non-Node runtime fails closed.
+      return false;
+    }
+  }
+}
+
+/**
  * Default verifier — exported as the SDK's preferred backend.
  *
  * Callers can override by passing a custom `SignatureVerifier` to
