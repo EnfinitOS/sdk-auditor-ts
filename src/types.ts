@@ -316,8 +316,15 @@ export type MeteringSummary = {
    * Optional convenience aggregate — the auditor recomputes from
    * `records` and asserts equality. Carries (unitType → sum-as-string)
    * to preserve decimal precision.
+   *
+   * `Partial` because a pack may emit metering for only a subset of
+   * unit types (e.g. a DOOH render-only pack has DWELL_SECONDS but
+   * no MESSAGE_DELIVERED). The auditor's projection asserts equality
+   * only over keys present in the recomputed totals — missing keys
+   * mean "no records of that unit type", which is distinguishable
+   * from "zero recorded value" but both are accepted as VALID.
    */
-  totals?: Record<MeterUnitType, string>;
+  totals?: Partial<Record<MeterUnitType, string>>;
 };
 
 // ─────────────────────────────────────────────────────────────────────
@@ -388,6 +395,22 @@ export type AuditBundle = {
    * "platform"). Audit reports always record which keys were used.
    */
   verificationKeys?: VerificationKey[];
+  /**
+   * Optional anchor for cross-pack chain continuity. When a tenant
+   * issues multiple packs serially (the normal case — every
+   * pre-sealed batch becomes one pack), each pack's first record
+   * carries the previous pack's last `afterHash` as its
+   * `beforeHash`. The auditor's "genesis" invariant (records[0]
+   * .beforeHash === null) holds for the FIRST pack only; for every
+   * subsequent pack the caller passes the prior pack's tail
+   * `afterHash` here so the chain-walk verifies cross-pack
+   * continuity instead of falsely tripping
+   * GENESIS_BEFORE_HASH_NOT_NULL.
+   *
+   * Omit this field when verifying a standalone pack (the auditor
+   * defaults to the genesis check, matching pre-2026.05 behaviour).
+   */
+  priorAfterHash?: string | null;
 };
 
 // ─────────────────────────────────────────────────────────────────────

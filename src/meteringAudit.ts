@@ -169,6 +169,11 @@ export function verifyMeteringProjection(
   // 5. Totals.
   if (metering.totals) {
     for (const [unitType, claimed] of Object.entries(metering.totals)) {
+      // totals is Partial<Record<MeterUnitType, string>>, so a key
+      // may legally be undefined (the operator declared the key
+      // shape but didn't fill in this row). Skip — there's nothing
+      // to compare against.
+      if (claimed === undefined) continue;
       const computed = computedTotals.get(unitType as MeterRecord["unitType"]) ?? 0n;
       const computedStr = formatScaledDecimal(computed);
       const claimedScaled = parseDecimalToScaled(claimed);

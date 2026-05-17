@@ -278,9 +278,18 @@ export class EnfinitOSAuditor {
    * already verified signatures via verifyProofPack and now wants to
    * audit the chain separately (or wants to audit a non-proof chain
    * — basis/right/offer/challenge — that uses the same shape).
+   *
+   * Pass `priorAfterHash` to anchor a later pack's first record at
+   * the previous pack's tail `afterHash` (cross-pack continuity).
+   * Omit it (or pass `null`) for a standalone / first pack — the
+   * auditor will then enforce the genesis invariant
+   * (records[0].beforeHash === null).
    */
-  async verifyProofChain(records: ProofRecord[]): Promise<ChainAuditReport> {
-    return verifyProofChain(records);
+  async verifyProofChain(
+    records: ProofRecord[],
+    priorAfterHash: string | null = null,
+  ): Promise<ChainAuditReport> {
+    return verifyProofChain(records, priorAfterHash);
   }
 
   /**
@@ -351,7 +360,12 @@ export class EnfinitOSAuditor {
     }
 
     const pack = await this.verifyProofPack(bundle.pack);
-    const chain = await this.verifyProofChain(bundle.pack.records);
+    // Forward the optional cross-pack anchor — see AuditBundle.priorAfterHash
+    // in types.ts. Genesis (no prior pack) defaults to null.
+    const chain = await this.verifyProofChain(
+      bundle.pack.records,
+      bundle.priorAfterHash ?? null,
+    );
 
     let metering: ProjectionAuditReport;
     if (bundle.metering ?? bundle.pack.metering) {

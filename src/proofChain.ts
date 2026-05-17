@@ -10,7 +10,13 @@
 // ─────────────
 // Walk the records in issuance order and verify three invariants:
 //
-//   1. **Genesis.**       records[0].beforeHash MUST be null.
+//   1. **Genesis.**       records[0].beforeHash MUST equal the
+//                         provided `priorAfterHash` (or `null` for a
+//                         standalone first pack). When verifying a
+//                         later pack in a tenant's chain, pass the
+//                         previous pack's tail `afterHash` so the
+//                         cross-pack link is verified rather than
+//                         falsely rejected.
 //   2. **Continuity.**    For i ≥ 1, records[i].beforeHash MUST equal
 //                         records[i-1].afterHash.
 //   3. **Ordering.**      issuedAt MUST be non-decreasing along the
@@ -47,8 +53,19 @@ import { SDK_VERSION } from "./types";
  * VALID otherwise. An empty input set is reported as INVALID with
  * a single EMPTY_PACK-style step — an audit of zero records is
  * meaningless.
+ *
+ * `priorAfterHash` (optional, defaults to `null`) anchors the first
+ * record's `beforeHash`. Pass `null` (or omit) when verifying a
+ * standalone or first pack — the auditor expects the genesis
+ * invariant (records[0].beforeHash === null). Pass the previous
+ * pack's tail `afterHash` when verifying a later pack in a
+ * tenant's chain so cross-pack continuity is enforced rather than
+ * falsely tripped as GENESIS_BEFORE_HASH_NOT_NULL.
  */
-export function verifyProofChain(records: ProofRecord[]): ChainAuditReport {
+export function verifyProofChain(
+  records: ProofRecord[],
+  priorAfterHash: string | null = null,
+): ChainAuditReport {
   const verifiedAt = new Date().toISOString();
   const steps: AuditStep[] = [];
 
@@ -70,24 +87,54 @@ export function verifyProofChain(records: ProofRecord[]): ChainAuditReport {
     };
   }
 
-  // 1. Genesis check.
+  // 1. Genesis / cross-pack link check.
   const first = records[0]!;
-  if (first.beforeHash !== null) {
-    steps.push({
-      target: "records[0].beforeHash",
-      kind: "chain_link",
-      status: "INVALID",
-      reason: "GENESIS_BEFORE_HASH_NOT_NULL",
-      message:
-        "first record carries a non-null beforeHash — the chain is rooted at a record the auditor has not been given. The pack is incomplete.",
-      detail: { beforeHash: first.beforeHash },
-    });
+  if (first.beforeHash !== priorAfterHash) {
+    // Two distinct failure modes, distinct messages:
+    //   - priorAfterHash === null: caller asserted this is the
+    //     genesis of the tenant's chain, but the first record
+    //     points at something earlier we weren't given.
+    //   - priorAfterHash !== null: caller passed the previous
+    //     pack's tail hash; first.beforeHash should match it for
+    //     cross-pack continuity.
+    if (priorAfterHash === null) {
+      steps.push({
+        target: "records[0].beforeHash",
+        kind: "chain_link",
+        status: "INVALID",
+        reason: "GENESIS_BEFORE_HASH_NOT_NULL",
+        message:
+          "first record carries a non-null beforeHash — the chain is rooted at a record the auditor has not been given. Pass `priorAfterHash` if this is a later pack in a tenant's chain; otherwise the pack is incomplete.",
+        detail: { beforeHash: first.beforeHash },
+      });
+    } else {
+      // Same reason as continuity breaks within a pack — both are
+      // "this beforeHash does not match the expected prior afterHash";
+      // the only difference is that here the "prior" is the
+      // previous pack's tail rather than the previous record in
+      // this pack.
+      steps.push({
+        target: "records[0].beforeHash",
+        kind: "chain_link",
+        status: "INVALID",
+        reason: "CHAIN_LINK_MISMATCH",
+        message:
+          "first record's beforeHash does not equal the supplied priorAfterHash — cross-pack continuity is broken.",
+        detail: {
+          expected: priorAfterHash,
+          actual: first.beforeHash,
+        },
+      });
+    }
   } else {
     steps.push({
       target: "records[0].beforeHash",
       kind: "chain_link",
       status: "VALID",
-      message: "genesis record has null beforeHash, as expected",
+      message:
+        priorAfterHash === null
+          ? "genesis record has null beforeHash, as expected"
+          : "first record's beforeHash matches the supplied priorAfterHash",
     });
   }
 
