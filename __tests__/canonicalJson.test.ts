@@ -103,12 +103,71 @@ describe("base64url", () => {
     expect(Array.from(back)).toEqual(Array.from(bytes));
   });
 
-  it("decodes padded input as well as unpadded", () => {
-    const padded = "AQIDBA==";
+  it("decodes valid unpadded base64url", () => {
+    // 4 bytes → 6 base64url characters (no padding).
     const unpadded = "AQIDBA";
-    expect(Array.from(base64UrlDecode(padded))).toEqual(
-      Array.from(base64UrlDecode(unpadded)),
+    expect(Array.from(base64UrlDecode(unpadded))).toEqual([1, 2, 3, 4]);
+  });
+
+  // ── Strict-mode rejection cases (MC-3 / pentest 2026-05-25) ────────
+  //
+  // The decoder enforces RFC 4648 §5 strictly. Wire-malleability is the
+  // attack we're closing: a verifier that accepts two different spellings
+  // of the same logical signature cannot byte-compare two signatures and
+  // trust the result. Below: each rejection case + a positive control.
+
+  it("rejects padding (= character)", () => {
+    expect(() => base64UrlDecode("AQIDBA==")).toThrow(/padding/);
+    expect(() => base64UrlDecode("A=")).toThrow(/padding/);
+    expect(() => base64UrlDecode("=")).toThrow(/padding/);
+  });
+
+  it("rejects whitespace anywhere in the input", () => {
+    expect(() => base64UrlDecode("AQ IDBA")).toThrow(/whitespace/);
+    expect(() => base64UrlDecode(" AQIDBA")).toThrow(/whitespace/);
+    expect(() => base64UrlDecode("AQIDBA ")).toThrow(/whitespace/);
+    expect(() => base64UrlDecode("AQIDBA\n")).toThrow(/whitespace/);
+    expect(() => base64UrlDecode("AQ\tIDBA")).toThrow(/whitespace/);
+  });
+
+  it("rejects standard-base64 characters (+ and /)", () => {
+    expect(() => base64UrlDecode("AQ+DBA")).toThrow(/invalid.+character/i);
+    expect(() => base64UrlDecode("AQ/DBA")).toThrow(/invalid.+character/i);
+  });
+
+  it("rejects other non-alphabet characters", () => {
+    expect(() => base64UrlDecode("AQ!DBA")).toThrow(/invalid.+character/i);
+    expect(() => base64UrlDecode("AQ.DBA")).toThrow(/invalid.+character/i);
+    expect(() => base64UrlDecode("hello world")).toThrow(/whitespace|invalid/);
+  });
+
+  it("rejects impossible length (mod 4 === 1)", () => {
+    // A 5-char input cannot represent any valid byte sequence under
+    // base64url. The decoder rejects rather than silently producing
+    // garbage.
+    expect(() => base64UrlDecode("AQIDB")).toThrow(/length/);
+  });
+
+  it("rejects non-string input", () => {
+    // Defensive — pen test scope is JS users; type-coerce attacks here
+    // are theoretical but we close them anyway.
+    expect(() => base64UrlDecode(null as unknown as string)).toThrow(/string/);
+    expect(() => base64UrlDecode(undefined as unknown as string)).toThrow(
+      /string/,
     );
+    expect(() => base64UrlDecode(123 as unknown as string)).toThrow(/string/);
+  });
+
+  it("accepts the canonical unpadded forms produced by base64UrlEncode", () => {
+    // Round-trip property: anything our encoder emits must decode.
+    for (const len of [0, 1, 2, 3, 4, 5, 16, 32, 64, 65]) {
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = (i * 31) & 0xff;
+      const enc = base64UrlEncode(bytes);
+      expect(enc).not.toContain("=");
+      expect(() => base64UrlDecode(enc)).not.toThrow();
+      expect(Array.from(base64UrlDecode(enc))).toEqual(Array.from(bytes));
+    }
   });
 });
 

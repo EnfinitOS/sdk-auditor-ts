@@ -128,6 +128,33 @@ export type VerificationKey = {
 };
 
 /**
+ * Optional signature over the verification-key-directory body, per
+ * ADR-0011 (envelope.v2). When the platform publishes signed
+ * directories, the auditor SDK verifies this signature against a
+ * pinned root public key before trusting any of the contained
+ * verification keys. Closes pen-test 2026-05-25 finding MC-1.
+ *
+ * When absent (e.g. against a v1 platform endpoint), the SDK falls
+ * back to TLS-only trust on the key directory — acceptable for
+ * pre-AWS-deployment but not for production.
+ */
+export type DirectorySignature = {
+  /** Identifier of the root key that produced this signature. */
+  rootKeyId: string;
+  /** Always "Ed25519" for v2. */
+  algorithm: SignatureAlgorithm;
+  /**
+   * Ed25519 signature, base64url-encoded (unpadded), over the
+   * canonical serialisation of the `data` block plus the rootKeyId
+   * separator. Verification reproduces the input as:
+   *   canonical(data) + "|" + rootKeyId
+   */
+  signature: string;
+  /** When the directory was signed (may pre-date issuance by minutes). */
+  issuedAt: string;
+};
+
+/**
  * Response envelope from `/v1/runtime-keys` (the public verification
  * key directory endpoint).
  */
@@ -147,6 +174,14 @@ export type RuntimeKeysResponse = {
      */
     snapshotId?: string;
   };
+  /**
+   * Per ADR-0011: signature over the `data` block by a pinned root
+   * key. The auditor SDK validates this signature when constructed
+   * with a `rootPublicKey`; otherwise the field is informational.
+   * Optional during the v1→v2 migration; required once the platform
+   * defaults to v2 emission.
+   */
+  directorySignature?: DirectorySignature;
 };
 
 // ─────────────────────────────────────────────────────────────────────

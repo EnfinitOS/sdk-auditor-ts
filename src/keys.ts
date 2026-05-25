@@ -63,6 +63,30 @@ export type KeyDirectoryOptions = {
   localKeys?: VerificationKey[];
   /** Injectable fetch — for tests. */
   httpFetch?: FetchLike;
+  /**
+   * Pinned root public key, base64url-encoded (unpadded), per ADR-0011.
+   * When supplied, the auditor SDK verifies the `directorySignature` on
+   * the platform response before trusting any of the contained keys.
+   * Closes MC-1 (key-directory MITM substitution).
+   *
+   * Strict-mode: if `rootPublicKey` is supplied but the platform
+   * response carries no `directorySignature`, the load fails with
+   * `KEYS_MALFORMED`. This is the right posture once the platform
+   * defaults to v2 emission — set the root key on the auditor and the
+   * SDK refuses to trust unsigned directories.
+   *
+   * Permissive mode: if `rootPublicKey` is NOT supplied, the SDK falls
+   * back to TLS-only trust on the directory (the v1 posture). Used
+   * during the v1→v2 migration and for sandbox / local-test usage.
+   */
+  rootPublicKey?: string;
+  /**
+   * Identifier of the root key (matched against the
+   * `directorySignature.rootKeyId` field). Required when
+   * `rootPublicKey` is supplied so a future key rotation can be
+   * detected unambiguously.
+   */
+  rootKeyId?: string;
 };
 
 const DEFAULT_PLATFORM_KEYS_URL = "https://api.enfinitos.com/v1/runtime-keys";
@@ -242,6 +266,22 @@ export async function loadKeyDirectory(
         "key directory response did not match the runtime_keys.v1 envelope",
     });
   }
+
+  // ADR-0011 (MC-1): if the caller supplied a pinned root public key, the
+  // platform response MUST carry a directorySignature, and it MUST verify
+  // against that root key. This closes the MITM-substitution attack on the
+  // key directory.
+  //
+  // Strict-mode semantics: a configured rootPublicKey with no signature in
+  // the response is treated as a tampered response — we fail closed with
+  // KEYS_MALFORMED rather than silently fall back to TLS-only trust.
+  if (options.rootPublicKey) {
+    await verifyDirectorySignature(parsed, {
+      rootPublicKey: options.rootPublicKey,
+      rootKeyId: options.rootKeyId,
+    });
+  }
+
   const validated = parsed.data.keys.map(assertValidKey);
   return new KeyDirectory({
     source: "platform",
@@ -303,6 +343,113 @@ function isRuntimeKeysResponse(v: unknown): v is RuntimeKeysResponse {
   if (!Array.isArray(data["keys"])) return false;
   if (typeof data["issuedAt"] !== "string") return false;
   return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ADR-0011 (MC-1): root-signed directory verification
+//
+// Lazy-imported to keep the Ed25519 + canonical-JSON paths out of the
+// import graph when the caller doesn't pin a root key. Once root-key
+// pinning becomes the default (Phase 2 in ADR-0011), this can move to
+// the top-level imports.
+// ─────────────────────────────────────────────────────────────────────
+
+async function verifyDirectorySignature(
+  parsed: RuntimeKeysResponse,
+  opts: { rootPublicKey: string; rootKeyId?: string },
+): Promise<void> {
+  // Lazy-load to avoid pulling Ed25519 + canonicaliser into bundles that
+  // don't use root-key pinning.
+  const [{ canonicalSortKeys, base64UrlDecode }, ed] = await Promise.all([
+    import("./canonicalJson"),
+    import("@noble/ed25519"),
+  ]);
+
+  const sig = parsed.directorySignature;
+  if (!sig) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message:
+        "rootPublicKey is configured but the platform response carried no directorySignature. Refusing to trust unsigned key directory.",
+    });
+  }
+  if (typeof sig.signature !== "string" || typeof sig.rootKeyId !== "string") {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: "directorySignature shape is invalid",
+    });
+  }
+  if (opts.rootKeyId && sig.rootKeyId !== opts.rootKeyId) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `directorySignature.rootKeyId (${JSON.stringify(
+        sig.rootKeyId,
+      )}) did not match the configured rootKeyId (${JSON.stringify(
+        opts.rootKeyId,
+      )}). Root key may have rotated.`,
+    });
+  }
+  if (sig.algorithm !== "ed25519") {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `directorySignature.algorithm '${sig.algorithm}' not supported (only ed25519)`,
+    });
+  }
+
+  // Reproduce the signing input deterministically. Per ADR-0011 the
+  // platform signs `canonical(data) + "|" + rootKeyId` where canonical()
+  // uses the same sort-keys serialisation as proof packs.
+  // `canonicalSortKeys` already returns the canonical JSON string, so we
+  // concatenate directly without an extra JSON.stringify wrap.
+  const canonicalBody = canonicalSortKeys(parsed.data);
+  const signingInput = `${canonicalBody}|${sig.rootKeyId}`;
+  const messageBytes = new TextEncoder().encode(signingInput);
+
+  let publicKey: Uint8Array;
+  let signature: Uint8Array;
+  try {
+    publicKey = base64UrlDecode(opts.rootPublicKey);
+    signature = base64UrlDecode(sig.signature);
+  } catch (decodeErr) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `directorySignature decode failed: ${String(
+        (decodeErr as Error).message,
+      )}`,
+    });
+  }
+
+  if (publicKey.length !== 32) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `rootPublicKey must decode to 32 bytes (got ${publicKey.length})`,
+    });
+  }
+  if (signature.length !== 64) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `directorySignature must decode to 64 bytes (got ${signature.length})`,
+    });
+  }
+
+  let ok = false;
+  try {
+    ok = await ed.verify(signature, messageBytes, publicKey);
+  } catch (verifyErr) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message: `directorySignature verification threw: ${String(
+        (verifyErr as Error).message,
+      )}`,
+    });
+  }
+  if (!ok) {
+    throw new AuditorError({
+      code: "KEYS_MALFORMED",
+      message:
+        "directorySignature did not verify against the configured rootPublicKey. Reject the directory.",
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
