@@ -201,11 +201,56 @@ export function base64UrlEncode(bytes: Uint8Array): string {
 }
 
 /**
- * Base64url-decode. Accepts both padded and unpadded input. Returns
- * a Uint8Array so the public API stays runtime-neutral.
+ * Strict base64url-decode (per RFC 4648 §5).
+ *
+ * Rejects:
+ *   - whitespace anywhere in the input (signature-malleability surface)
+ *   - characters outside the base64url alphabet [A-Za-z0-9_-]
+ *   - explicit padding (`=`) — base64url proof signatures are emitted
+ *     unpadded by every EnfinitOS signer and accepting padded inputs as
+ *     well would let the same logical signature have two different wire
+ *     spellings (`AAAA` vs `AAAA====`), which complicates downstream
+ *     equality checks
+ *   - lengths that cannot represent a valid byte sequence (`% 4 === 1`)
+ *
+ * This is intentionally stricter than what `atob` will accept. Strictness
+ * here is what lets verifiers byte-compare two signature strings and
+ * trust the comparison.
+ *
+ * Returns a `Uint8Array` so the public API stays runtime-neutral
+ * (browser + Node + Deno + Bun all support it).
+ *
+ * Throws `Error` with a stable message on any of the above. Callers
+ * that need a non-throwing path can wrap in try/catch.
  */
 export function base64UrlDecode(s: string): Uint8Array {
-  const padded = s + "=".repeat((4 - (s.length % 4)) % 4);
+  if (typeof s !== "string") {
+    throw new Error("base64UrlDecode: input must be a string");
+  }
+  // Whitespace at any position — rejected. Many decoders treat whitespace
+  // as "ignore" which makes wire-malleability easy. We do not.
+  if (/\s/.test(s)) {
+    throw new Error("base64UrlDecode: whitespace not allowed in base64url");
+  }
+  // Padding ("=") — rejected. EnfinitOS signers emit unpadded base64url.
+  if (s.indexOf("=") !== -1) {
+    throw new Error("base64UrlDecode: padding ('=') not allowed; use unpadded base64url");
+  }
+  // Alphabet — only [A-Za-z0-9_-]. No `+`/`/` (those are base64, not base64url).
+  if (!/^[A-Za-z0-9_-]*$/.test(s)) {
+    throw new Error("base64UrlDecode: invalid base64url character");
+  }
+  // Length contract — base64url encodes 3 bytes per 4 characters. Valid
+  // remainders are 0 (clean), 2 (1 trailing byte), 3 (2 trailing bytes).
+  // A remainder of 1 is impossible to decode.
+  if (s.length % 4 === 1) {
+    throw new Error("base64UrlDecode: invalid length (mod 4 == 1)");
+  }
+
+  // Pad internally for atob (which only accepts standard base64 with
+  // padding) but the input must have been unpadded to reach this point.
+  const padLen = (4 - (s.length % 4)) % 4;
+  const padded = s + "=".repeat(padLen);
   const normal = padded.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(normal);
   const out = new Uint8Array(binary.length);
