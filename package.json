@@ -22,9 +22,19 @@
     "compliance",
     "enfinitos"
   ],
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
     "dev": "echo sdk-auditor",
-    "build": "echo sdk-auditor",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
