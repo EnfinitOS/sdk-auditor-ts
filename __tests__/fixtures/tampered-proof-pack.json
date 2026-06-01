@@ -1,0 +1,29 @@
+{
+  "envelopeVersion": "envelope.v1",
+  "issuedAt": "2026-04-01T12:00:00.000Z",
+  "orgId": "org_test",
+  "packId": "pack_tampered",
+  "label": "tampered-fixture (afterHash modified)",
+  "records": [
+    {
+      "payload": {
+        "version": "1",
+        "receiptId": "rec_001",
+        "correlationId": null,
+        "spatialAnchorId": "anchor_A",
+        "spatialPlacementId": "place_A",
+        "issuedAt": "2026-04-01T12:00:00.000Z",
+        "renderedAt": "2026-04-01T11:59:59.000Z",
+        "dwellMs": 3500,
+        "nonce": "n0001",
+        "witness": null
+      },
+      "keyId": "fixture_key_v1",
+      "algorithm": "ed25519",
+      "signature": "PLACEHOLDER_SIGNATURE",
+      "payloadCanonical": "PLACEHOLDER_CANONICAL",
+      "beforeHash": null,
+      "afterHash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    }
+  ]
+}
