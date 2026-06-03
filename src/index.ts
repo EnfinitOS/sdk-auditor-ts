@@ -135,7 +135,12 @@ export async function verifyReceiptIndependently(
   record: ProofRecord,
   keys: ReadonlyArray<VerificationKey>,
 ): Promise<VerifyReceiptResult> {
-  const directory = new _KeyDirectory([...keys]);
+  const directory = new _KeyDirectory({
+    source: "local",
+    snapshotId: null,
+    issuedAt: null,
+    keys: [...keys],
+  });
   const steps = await _verifyProofRecord(record, 0, directory, _defaultVerifier);
   const invalid = steps.find((s) => s.status === "INVALID");
   return {

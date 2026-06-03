@@ -28,7 +28,11 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },
@@ -44,6 +48,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@enfinitos/sdk-auditor": "^0.0.1",
     "@noble/ed25519": "^2.1.0",
     "@noble/hashes": "^1.4.0"
   },
