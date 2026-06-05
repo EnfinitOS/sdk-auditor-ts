@@ -198,6 +198,58 @@ Re-derives settlement lines from metering using the share table.
 Reports `SETTLEMENT_AMOUNT_MISMATCH` / `SETTLEMENT_SHARE_SUM_NOT_ONE` /
 `SETTLEMENT_TOTAL_MISMATCH` on any divergence.
 
+### `verifyProvenanceChain` + `verifyProvenanceRecord` (provenance.ts)
+
+Independently verifies the **write-time Ed25519 signatures on
+rights-provenance records** — the lifecycle ledger behind every
+basis, right, offer, and challenge (assert/verify/reject, issue/
+suspend/resume/revoke/expire, propose/accept/counter/reject/
+withdraw/expire, open/resolve/withdraw).
+
+Unlike proof receipts (canonical-JSON payloads), each provenance
+record is signed over a flat pipe-delimited canonical string that
+every verifier language reconstructs without a canonical-JSON
+library:
+
+```
+rightProvenance.v1|<orgId>|<eventType>|<rightId|->|<basisId|->|<offerId|->|<beforeHash|->|<afterHash|->|<keyId>
+```
+
+(`-` encodes an absent field). Per record the SDK: re-derives that
+string from the record's raw fields and asserts byte-equality with
+the shipped `payloadCanonical`; resolves `signerKeyId` in the key
+directory (same validity-window + revocation semantics as
+receipts); then Ed25519-verifies the signature.
+
+```typescript
+import { verifyProvenanceChain } from "@enfinitos/sdk-auditor";
+
+const report = await verifyProvenanceChain(
+  exportArchive.records,   // ProvenanceRecord[] from /proof/export
+  pinnedKeys,              // VerificationKey[] or a KeyDirectory
+  { expectedOrgId: "org_abc" },
+);
+report.status;             // "VALID" | "INVALID" | "SKIPPED"
+report.signedRecordCount;  // write-time-signed records
+report.unsignedRecordCount; // legacy (pre-write-time) records
+```
+
+**Backwards compatibility — legacy records.** Records written before
+the platform shipped write-time provenance signing carry
+`signatureAlgorithm: "hmac-sha256"` (a read-time transport HMAC the
+SDK cannot independently verify). The verifier reports each as an
+**informational SKIPPED step** with reason
+`PROVENANCE_UNSIGNED_RECORD` — never INVALID — so exports produced
+under SDK 0.0.1 keep verifying. A set that mixes signed and legacy
+records is VALID if every signed record verifies; an all-legacy set
+is SKIPPED (nothing verifiable, nothing failed).
+
+**Pair with `verifyTenantChain`.** `verifyProvenanceChain` proves
+WHO wrote each record (non-repudiation); `verifyTenantChain` proves
+each record's POSITION in the tenant's append-only history
+(insertion/rewrite detection). Run both for the full provenance
+posture.
+
 ### `loadKeyDirectory` (keys.ts)
 
 Fetches verification keys from `/v1/runtime-keys` or accepts a local
@@ -253,6 +305,11 @@ The stable reason codes:
 | `SETTLEMENT_IDEM_KEY_MISMATCH` | settlement | idemKey != sha256(meterIdemKey\|partyRole). |
 | `SETTLEMENT_TOTAL_MISMATCH` | settlement | totals don't sum from lines. |
 | `SETTLEMENT_ORG_MISMATCH` | settlement | settlement.orgId != metering.orgId. |
+| `PROVENANCE_SIGNATURE_INVALID` | provenance | Ed25519 verify failed on a rights-provenance record. |
+| `PROVENANCE_SIGNATURE_MALFORMED` | provenance | Signature/key bytes not valid base64url / 64/32 bytes. |
+| `PROVENANCE_CANONICAL_MISMATCH` | provenance | Raw fields don't reconstruct payloadCanonical — post-write tampering. |
+| `PROVENANCE_UNSIGNED_RECORD` | provenance | Informational (SKIPPED, never INVALID): pre-write-time-signing record. |
+| `PROVENANCE_ORG_MISMATCH` | provenance | Record orgId != pinned expectedOrgId — tenant-spliced set. |
 
 ## Offline / pinned-key audit
 
@@ -299,3 +356,5 @@ Cross-references to the platform-side counterpart:
 - metering projection: `apps/api/src/services/spatialChain/meterService.ts`
 - settlement projection: `apps/api/src/services/spatialChain/settlementService.ts`
 - right/basis/offer hashes: `apps/api/src/modules/rights/service.ts`
+- provenance write-time signing: `apps/api/src/modules/rights/provenanceSigner.ts`
+  (canonical input) + `apps/api/src/modules/proof/decoder.ts` (wire shape)

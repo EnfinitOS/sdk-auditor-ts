@@ -90,6 +90,18 @@ export {
   type TenantChainedRecord,
 } from "./tenantChain";
 
+// Wave 14 Phase 2 — rights-provenance write-time signature
+// verification. Verifies WHO signed each rights lifecycle record;
+// pair with verifyTenantChain (position) for the full posture.
+export {
+  verifyProvenanceChain,
+  verifyProvenanceRecord,
+  canonicaliseProvenanceSigningInput,
+  PROVENANCE_SIGNING_VERSION,
+  type ProvenanceSigningFields,
+  type VerifyProvenanceChainOptions,
+} from "./provenance";
+
 // ─────────────────────────────────────────────────────────────────────
 // Independent single-receipt verification — Wave 27 / Phase 4.
 //
@@ -205,6 +217,8 @@ export {
   type ProofPack,
   type ProofReceiptPayload,
   type ProofRecord,
+  type ProvenanceAuditReport,
+  type ProvenanceRecord,
   type RuntimeKeysResponse,
   type SettlementAuditReport,
   type SettlementLine,
