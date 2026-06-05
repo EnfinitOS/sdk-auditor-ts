@@ -5,6 +5,39 @@ library that regulators, auditors, courts, and third-party compliance
 tools use to verify signed proof packs issued by EnfinitOS, **without
 having to trust EnfinitOS as a vendor**.
 
+This is the reference implementation. Companion ports with identical
+wire shapes, reason codes, and verdicts:
+[Python](https://github.com/EnfinitOS/sdk-auditor-py) ·
+[Rust](https://github.com/EnfinitOS/sdk-auditor-rs).
+
+## What's new in 0.0.2
+
+**Rights-provenance write-time signature verification.** The platform
+now Ed25519-signs every rights-provenance ledger row at write time
+(basis, right, offer, and challenge lifecycle events); 0.0.2 ships
+the independent verifier:
+
+```typescript
+import { verifyProvenanceChain } from "@enfinitos/sdk-auditor";
+
+const report = await verifyProvenanceChain(
+  exportArchive.records,      // ProvenanceRecord[] from /proof/export
+  pinnedKeys,                 // VerificationKey[] or a KeyDirectory
+  { expectedOrgId: "org_abc" },
+);
+report.status;                // "VALID" | "INVALID" | "SKIPPED"
+report.signedRecordCount;     // write-time-signed records
+report.unsignedRecordCount;   // legacy (pre-write-time) records
+```
+
+Legacy records (pre-write-time signing, `signatureAlgorithm:
+"hmac-sha256"`) surface as informational SKIPPED findings — never
+INVALID — so 0.0.1-era exports keep verifying. Also in 0.0.2:
+`SettlementPartyRole` widened to the platform's full 8-role union
+(`AGENCY`, `AFFILIATE`, `RESELLER`, `TAX_AUTHORITY` added). See
+[CHANGELOG.md](https://github.com/EnfinitOS/sdk-auditor-ts/blob/main/CHANGELOG.md)
+for the full release notes, including the Rust-specific upgrade note.
+
 ## The trust model
 
 EnfinitOS issues signed evidence as part of every spatial-chain run:

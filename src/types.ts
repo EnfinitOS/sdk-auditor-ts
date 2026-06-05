@@ -62,7 +62,7 @@ export type EnvelopeVersion = (typeof SUPPORTED_ENVELOPE_VERSIONS)[number];
  * can pin "I verified this pack with SDK X.Y.Z" — important if a
  * later SDK release fixes a verification bug.
  */
-export const SDK_VERSION = "0.0.1" as const;
+export const SDK_VERSION = "0.0.2" as const;
 
 /**
  * Algorithm identifiers the SDK understands. We only ship Ed25519
