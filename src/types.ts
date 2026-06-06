@@ -62,7 +62,7 @@ export type EnvelopeVersion = (typeof SUPPORTED_ENVELOPE_VERSIONS)[number];
  * can pin "I verified this pack with SDK X.Y.Z" — important if a
  * later SDK release fixes a verification bug.
  */
-export const SDK_VERSION = "0.0.1" as const;
+export const SDK_VERSION = "0.0.2" as const;
 
 /**
  * Algorithm identifiers the SDK understands. We only ship Ed25519
@@ -300,6 +300,109 @@ export type ProofPack = {
 };
 
 // ─────────────────────────────────────────────────────────────────────
+// Rights-provenance records — Wave 14 write-time signing contract
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * ProvenanceRecord — one rights-provenance ledger entry as the
+ * platform's proof read surface emits it
+ * (apps/api/src/modules/proof/decoder.ts → ProofRecord, proof.v1).
+ *
+ * This is a DIFFERENT artefact from the spatial-chain ProofRecord
+ * above: that one wraps a ProofReceiptPayload signed over a
+ * canonical-JSON encoding; this one is a rights lifecycle event
+ * (basis assert/verify/reject, right issue/suspend/resume/revoke/
+ * expire, offer propose/accept/counter/reject/withdraw/expire,
+ * challenge open/resolve/withdraw) signed over a flat pipe-delimited
+ * canonical string:
+ *
+ *   "rightProvenance.v1|<orgId>|<eventType>|<rightId|->|<basisId|->|
+ *    <offerId|->|<beforeHash|->|<afterHash|->|<keyId>"
+ *
+ * where "-" encodes an absent field. The hand-rolled form is what
+ * lets TS / Rust / Python verifiers reconstruct the signed bytes
+ * without sharing a canonical-JSON library.
+ *
+ * Signature presence is per-record:
+ *   - `signatureAlgorithm: "ed25519"` → the record was signed at
+ *     write time. `signature` is the base64url (unpadded) 64-byte
+ *     Ed25519 signature; `signerKeyId` matches a VerificationKey.
+ *     `payloadCanonical` carries the exact signed string as a
+ *     transparency aid — the SDK re-derives it from the raw fields
+ *     and asserts byte-equality before verifying.
+ *   - `signatureAlgorithm: "hmac-sha256"` → legacy (pre-Wave-14)
+ *     record. The signature is a platform-side read-time transport
+ *     HMAC the SDK cannot independently verify; the verifier reports
+ *     PROVENANCE_UNSIGNED_RECORD as an informational SKIPPED step,
+ *     never INVALID — published 0.0.1-era exports must keep
+ *     verifying.
+ */
+export type ProvenanceRecord = {
+  /** Stable record id (the RightProvenance row id). */
+  proofId: string;
+  /** Tenant the record belongs to. Part of the signing input. */
+  orgId: string;
+  /**
+   * The platform's raw lifecycle event tag (e.g. RIGHT_ISSUED,
+   * OFFER_ACCEPTED, RIGHT_CHALLENGE_RESOLVED). Part of the signing
+   * input. NOTE: this is NOT the proof surface's collapsed 10-value
+   * `type` taxonomy — the wire field is `provenanceEventType`.
+   */
+  provenanceEventType: string;
+  /** ISO-8601 — when the event was recorded. Drives key-validity checks. */
+  occurredAt: string;
+  /** Entity pointers — each part of the signing input; null when absent. */
+  rightId: string | null;
+  basisId: string | null;
+  offerId: string | null;
+  /**
+   * Raw entity-chain hashes exactly as persisted (typically
+   * `sha256:<hex>`-prefixed; null on auxiliary birth rows such as
+   * OFFER_PROPOSED). Part of the signing input. Wire fields are
+   * `provenanceBeforeHash` / `provenanceAfterHash`.
+   */
+  provenanceBeforeHash: string | null;
+  provenanceAfterHash: string | null;
+  /** "ed25519" (write-time signed) or "hmac-sha256" (legacy). */
+  signatureAlgorithm: "ed25519" | "hmac-sha256";
+  /**
+   * For ed25519 records: base64url (unpadded) 64-byte Ed25519
+   * signature over the canonical signing input. For hmac-sha256
+   * records: the platform's transport HMAC (hex) — opaque to the SDK.
+   */
+  signature: string;
+  /**
+   * For ed25519 records: the signing key id, resolvable in the
+   * published verification-key directory. For hmac-sha256 records:
+   * the synthetic `ledger.v1.<orgId>` tag.
+   */
+  signerKeyId: string;
+  /**
+   * For ed25519 records: the exact canonical string that was signed.
+   * Null on legacy records.
+   */
+  payloadCanonical: string | null;
+};
+
+/**
+ * ProvenanceAuditReport — verifyProvenanceChain output. Same shape
+ * family as ChainAuditReport, with the signed/unsigned partition
+ * surfaced so a regulator can quote "N of M records carry write-time
+ * signatures" directly.
+ */
+export type ProvenanceAuditReport = {
+  status: AuditStepStatus;
+  verifiedAt: string;
+  sdkVersion: string;
+  recordCount: number;
+  /** Records carrying a write-time Ed25519 signature. */
+  signedRecordCount: number;
+  /** Legacy records (read-time HMAC only) — informational, not failures. */
+  unsignedRecordCount: number;
+  steps: AuditStep[];
+};
+
+// ─────────────────────────────────────────────────────────────────────
 // Metering
 // ─────────────────────────────────────────────────────────────────────
 
@@ -375,7 +478,23 @@ export type MeteringSummary = {
  * `amountCents` from `meterRecordIdemKey`'s `unitCount` and the
  * pricing policy, then asserts equality.
  */
-export type SettlementPartyRole = "TENANT" | "VENUE" | "CUSTOMER" | "PLATFORM";
+export type SettlementPartyRole =
+  | "TENANT"
+  | "VENUE"
+  | "CUSTOMER"
+  | "PLATFORM"
+  // The enterprise settlement rebuild (May 2026) widened the
+  // platform's role union — counterparty-addressed splits can pay
+  // agencies, affiliates, resellers, and tax authorities. The
+  // auditor's settlement checks are role-agnostic (idemKey
+  // reconstruction + per-meter share sums + amount recomputation),
+  // so verification semantics are unchanged; this keeps the wire
+  // contract in field-for-field parity with sandbox-core
+  // (enforced by sandbox-core's conformance test).
+  | "AGENCY"
+  | "AFFILIATE"
+  | "RESELLER"
+  | "TAX_AUTHORITY";
 
 export type SettlementLine = {
   /** sha256(meterRecordIdemKey|partyRole). */
@@ -504,6 +623,14 @@ export type AuditReasonCode =
   | "SETTLEMENT_IDEM_KEY_MISMATCH"
   | "SETTLEMENT_TOTAL_MISMATCH"
   | "SETTLEMENT_ORG_MISMATCH"
+  // Rights-provenance write-time signing (Wave 14 Phase 2). Additive —
+  // packs/exports produced before the platform shipped write-time
+  // provenance signing never trip these.
+  | "PROVENANCE_SIGNATURE_INVALID"
+  | "PROVENANCE_SIGNATURE_MALFORMED"
+  | "PROVENANCE_CANONICAL_MISMATCH"
+  | "PROVENANCE_UNSIGNED_RECORD"
+  | "PROVENANCE_ORG_MISMATCH"
   // Keys
   | "KEYS_FETCH_FAILED"
   | "KEYS_RESPONSE_MALFORMED";
@@ -519,7 +646,13 @@ export type AuditStep = {
   /** What kind of step this is — see AuditStepKind. */
   kind: AuditStepKind;
   status: AuditStepStatus;
-  /** Set on INVALID; absent on VALID and SKIPPED. */
+  /**
+   * Set on INVALID; absent on VALID. SKIPPED steps normally carry no
+   * reason, with one citable exception: informational provenance
+   * findings (PROVENANCE_UNSIGNED_RECORD) set the reason on a SKIPPED
+   * step so a regulator can quote the code without the step counting
+   * as a failure.
+   */
   reason?: AuditReasonCode;
   /** Human-readable note. Always safe to surface in regulator UIs. */
   message: string;
@@ -536,7 +669,9 @@ export type AuditStepKind =
   | "meter_total"
   | "settlement_line"
   | "settlement_total"
-  | "key_lookup";
+  | "key_lookup"
+  // Wave 14 Phase 2 — rights-provenance write-time signature checks.
+  | "provenance_signature";
 
 /**
  * AuditReport — the result of `verifyProofPack`. Reports the

@@ -20,10 +20,15 @@ import {
   settlementIdemKey,
   sha256Hex,
 } from "../../src/hashing.js";
+import {
+  canonicaliseProvenanceSigningInput,
+  type ProvenanceSigningFields,
+} from "../../src/provenance.js";
 import type {
   MeteringSummary,
   ProofReceiptPayload,
   ProofRecord,
+  ProvenanceRecord,
   SettlementSummary,
   SignedProofPack,
   VerificationKey,
@@ -249,6 +254,70 @@ export function buildSettlementSummary(
       netToTenantCents: totalGross,
       platformFeeCents: 0,
     },
+  };
+}
+
+/**
+ * signProvenanceRecord — produce a write-time-signed rights-provenance
+ * record from its signing fields and a generated key. Mirrors the
+ * platform's apps/api/src/modules/rights/provenanceSigner.ts
+ * `signProvenance` path byte-for-byte: canonical pipe-delimited
+ * signing input, raw 64-byte Ed25519 signature, base64url unpadded.
+ */
+export function signProvenanceRecord(
+  fields: ProvenanceSigningFields & {
+    proofId?: string;
+    occurredAt?: string;
+  },
+  key: GeneratedKey,
+): ProvenanceRecord {
+  const payloadCanonical = canonicaliseProvenanceSigningInput(fields, key.keyId);
+  const signatureBytes = nodeSign(
+    null,
+    new TextEncoder().encode(payloadCanonical),
+    key.signingKey,
+  );
+  return {
+    proofId: fields.proofId ?? `rp_${Math.random().toString(36).slice(2, 10)}`,
+    orgId: fields.orgId,
+    provenanceEventType: fields.eventType,
+    occurredAt: fields.occurredAt ?? "2026-05-29T12:00:00.000Z",
+    rightId: fields.rightId,
+    basisId: fields.basisId,
+    offerId: fields.offerId,
+    provenanceBeforeHash: fields.beforeHash,
+    provenanceAfterHash: fields.afterHash,
+    signatureAlgorithm: "ed25519",
+    signature: base64UrlEncode(new Uint8Array(signatureBytes)),
+    signerKeyId: key.keyId,
+    payloadCanonical,
+  };
+}
+
+/**
+ * buildLegacyProvenanceRecord — a pre-Wave-14 record carrying only
+ * the platform's read-time transport HMAC. Not independently
+ * verifiable; the verifier reports it as an informational
+ * PROVENANCE_UNSIGNED_RECORD finding.
+ */
+export function buildLegacyProvenanceRecord(
+  overrides: Partial<ProvenanceRecord> = {},
+): ProvenanceRecord {
+  return {
+    proofId: `rp_legacy_${Math.random().toString(36).slice(2, 10)}`,
+    orgId: "org_test",
+    provenanceEventType: "RIGHT_ISSUED",
+    occurredAt: "2026-03-01T12:00:00.000Z",
+    rightId: "rgh_legacy",
+    basisId: null,
+    offerId: null,
+    provenanceBeforeHash: null,
+    provenanceAfterHash: "sha256:" + "a".repeat(64),
+    signatureAlgorithm: "hmac-sha256",
+    signature: "c0ffee".repeat(10) + "abcd",
+    signerKeyId: "ledger.v1.org_test",
+    payloadCanonical: null,
+    ...overrides,
   };
 }
 

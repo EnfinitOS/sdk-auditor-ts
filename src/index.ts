@@ -90,6 +90,18 @@ export {
   type TenantChainedRecord,
 } from "./tenantChain";
 
+// Wave 14 Phase 2 — rights-provenance write-time signature
+// verification. Verifies WHO signed each rights lifecycle record;
+// pair with verifyTenantChain (position) for the full posture.
+export {
+  verifyProvenanceChain,
+  verifyProvenanceRecord,
+  canonicaliseProvenanceSigningInput,
+  PROVENANCE_SIGNING_VERSION,
+  type ProvenanceSigningFields,
+  type VerifyProvenanceChainOptions,
+} from "./provenance";
+
 // ─────────────────────────────────────────────────────────────────────
 // Independent single-receipt verification — Wave 27 / Phase 4.
 //
@@ -135,7 +147,12 @@ export async function verifyReceiptIndependently(
   record: ProofRecord,
   keys: ReadonlyArray<VerificationKey>,
 ): Promise<VerifyReceiptResult> {
-  const directory = new _KeyDirectory([...keys]);
+  const directory = new _KeyDirectory({
+    source: "local",
+    snapshotId: null,
+    issuedAt: null,
+    keys: [...keys],
+  });
   const steps = await _verifyProofRecord(record, 0, directory, _defaultVerifier);
   const invalid = steps.find((s) => s.status === "INVALID");
   return {
@@ -200,6 +217,8 @@ export {
   type ProofPack,
   type ProofReceiptPayload,
   type ProofRecord,
+  type ProvenanceAuditReport,
+  type ProvenanceRecord,
   type RuntimeKeysResponse,
   type SettlementAuditReport,
   type SettlementLine,

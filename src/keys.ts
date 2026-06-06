@@ -278,7 +278,7 @@ export async function loadKeyDirectory(
   if (options.rootPublicKey) {
     await verifyDirectorySignature(parsed, {
       rootPublicKey: options.rootPublicKey,
-      rootKeyId: options.rootKeyId,
+      ...(options.rootKeyId !== undefined ? { rootKeyId: options.rootKeyId } : {}),
     });
   }
 
