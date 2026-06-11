@@ -20,7 +20,9 @@
 //   4. Recomputes `amountCents = round(grossAmountCents * share)`
 //      and asserts equality — `SETTLEMENT_AMOUNT_MISMATCH` if not.
 //   5. Confirms settlement-line idemKey reconstructs as
-//      sha256(meterRecordIdemKey|partyRole).
+//      sha256(meterRecordIdemKey|partyRole|ledgerAccountCode) — content-hash
+//      based, so production settlement lines are independently recomputable
+//      (CRYPTO-01 / settlement.v2).
 //   6. Recomputes per-summary totals (grossCents, netToTenantCents,
 //      platformFeeCents) and asserts equality if `summary.totals`
 //      is provided.
@@ -105,15 +107,19 @@ export function verifySettlementReconciliation(
       });
       continue;
     }
-    // 5. idemKey reconstruction.
-    const expectedIdem = settlementIdemKey(line.meterRecordIdemKey, line.partyRole);
+    // 5. idemKey reconstruction (settlement.v2: 3-field, content-hash based).
+    const expectedIdem = settlementIdemKey(
+      line.meterRecordIdemKey,
+      line.partyRole,
+      line.ledgerAccountCode,
+    );
     if (line.idemKey !== expectedIdem) {
       steps.push({
         target: `settlement.lines[${i}].idemKey`,
         kind: "settlement_line",
         status: "INVALID",
         reason: "SETTLEMENT_IDEM_KEY_MISMATCH",
-        message: `settlement-line idemKey does not equal sha256(meterIdemKey|partyRole)`,
+        message: `settlement-line idemKey does not equal sha256(meterIdemKey|partyRole|ledgerAccountCode)`,
         detail: { expected: expectedIdem, actual: line.idemKey },
       });
     } else {

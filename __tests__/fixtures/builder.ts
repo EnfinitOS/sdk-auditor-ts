@@ -230,7 +230,7 @@ export function buildSettlementSummary(
     const gross = seconds * PRICE_PER_SECOND_CENTS;
     meterGross[m.idemKey] = gross;
     return {
-      idemKey: settlementIdemKey(m.idemKey, "TENANT"),
+      idemKey: settlementIdemKey(m.idemKey, "TENANT", "SPATIAL_REVENUE_GROSS"),
       meterRecordIdemKey: m.idemKey,
       partyRole: "TENANT" as const,
       share: "1.000000",
@@ -242,7 +242,7 @@ export function buildSettlementSummary(
   });
   const totalGross = lines.reduce((a, l) => a + l.amountCents, 0);
   return {
-    schemaVersion: "settlement.v1",
+    schemaVersion: "settlement.v2",
     orgId: metering.orgId,
     periodStart: metering.periodStart,
     periodEnd: metering.periodEnd,

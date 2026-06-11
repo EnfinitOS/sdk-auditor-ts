@@ -6,6 +6,25 @@ PyPI) and Rust (`enfinitos-sdk-auditor` on crates.io) ports track it
 release-for-release with identical wire shapes, reason codes, and
 verdicts.
 
+## 0.0.3 — 2026-06-10
+
+### Changed (BREAKING — settlement.v2)
+
+- **Settlement idemKey is now 3-field and content-hash based** (CRYPTO-01).
+  `settlementIdemKey(meterRecordIdemKey, partyRole, ledgerAccountCode)` =
+  `sha256(meterRecordIdemKey|partyRole|ledgerAccountCode)`, matching the
+  production settlement engine (`apps/api/.../spatialChain/settlementService.ts`).
+  Previously `sha256(meterRecordIdemKey|partyRole)`, which could not be
+  reconstructed for a (meter, partyRole) pair split across multiple ledger
+  accounts — and which production never actually emitted (it keyed on the
+  internal DB id, which no external auditor can reconstruct). This is what makes
+  production settlement independently recomputable.
+- `SettlementSummary.schemaVersion` now accepts `"settlement.v2"`.
+- Amounts remain a floor-of-(gross×share) split with the remainder reabsorbed
+  into the largest-share line; the production engine now produces this exactly
+  (deterministic residual). Tightening the auditor's ±group-size tolerance to
+  exact-cent equality is the planned follow-up (CRYPTO-04).
+
 ## 0.0.2 — 2026-06-05
 
 ### Added

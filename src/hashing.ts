@@ -77,14 +77,21 @@ export function meterIdemKey(proofReceiptId: string, unitType: string): string {
 }
 
 /**
- * SettlementLine idemKey reconstruction —
- * `sha256(meterRecordIdemKey|partyRole)`.
+ * SettlementLine idemKey reconstruction (settlement.v2) —
+ * `sha256(meterRecordIdemKey|partyRole|ledgerAccountCode)`.
+ *
+ * CRYPTO-01: keyed on the meter's CONTENT hash (meterRecordIdemKey) and
+ * including ledgerAccountCode, so it matches the production engine
+ * (apps/api/src/services/spatialChain/settlementService.ts) and a
+ * (meter, partyRole) pair that splits across multiple ledger accounts stays
+ * unique. Pre-0.0.3 this was the 2-field `sha256(meterRecordIdemKey|partyRole)`.
  */
 export function settlementIdemKey(
   meterRecordIdemKey: string,
   partyRole: string,
+  ledgerAccountCode: string,
 ): string {
-  return sha256Hex(`${meterRecordIdemKey}|${partyRole}`);
+  return sha256Hex(`${meterRecordIdemKey}|${partyRole}|${ledgerAccountCode}`);
 }
 
 /**

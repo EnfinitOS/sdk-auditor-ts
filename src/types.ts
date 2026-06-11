@@ -62,7 +62,7 @@ export type EnvelopeVersion = (typeof SUPPORTED_ENVELOPE_VERSIONS)[number];
  * can pin "I verified this pack with SDK X.Y.Z" — important if a
  * later SDK release fixes a verification bug.
  */
-export const SDK_VERSION = "0.0.2" as const;
+export const SDK_VERSION = "0.0.3" as const;
 
 /**
  * Algorithm identifiers the SDK understands. We only ship Ed25519
@@ -497,7 +497,7 @@ export type SettlementPartyRole =
   | "TAX_AUTHORITY";
 
 export type SettlementLine = {
-  /** sha256(meterRecordIdemKey|partyRole). */
+  /** sha256(meterRecordIdemKey|partyRole|ledgerAccountCode). */
   idemKey: string;
   meterRecordIdemKey: string;
   partyRole: SettlementPartyRole;
@@ -511,7 +511,7 @@ export type SettlementLine = {
 };
 
 export type SettlementSummary = {
-  schemaVersion: "settlement.v1";
+  schemaVersion: "settlement.v1" | "settlement.v2";
   orgId: string;
   periodStart: string;
   periodEnd: string;
