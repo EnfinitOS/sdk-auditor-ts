@@ -44,6 +44,35 @@ describe("verifyProofChain", () => {
     ).toBe(true);
   });
 
+  it("flags CHAIN_NONCE_REUSED when a nonce repeats (CRYPTO-07)", () => {
+    const key = generateKey();
+    const pack = buildMultiRecordChain(3, key);
+    // Force record[2] to reuse record[0]'s nonce. The chain hashes are
+    // untouched (the walk trusts afterHash), so only the nonce-uniqueness
+    // invariant should trip — isolating the new check.
+    const dupNonce = pack.records[0]!.payload.nonce;
+    const tampered = pack.records.map((r, i) =>
+      i === 2 ? { ...r, payload: { ...r.payload, nonce: dupNonce } } : r,
+    );
+    const report = verifyProofChain(tampered);
+    expect(report.status).toBe("INVALID");
+    expect(
+      report.steps.some((s) => s.reason === "CHAIN_NONCE_REUSED"),
+    ).toBe(true);
+  });
+
+  it("records a VALID nonce-uniqueness step for distinct nonces", () => {
+    const key = generateKey();
+    const pack = buildMultiRecordChain(4, key);
+    const report = verifyProofChain(pack.records);
+    expect(report.status).toBe("VALID");
+    expect(
+      report.steps.some(
+        (s) => s.target === "records[].payload.nonce" && s.status === "VALID",
+      ),
+    ).toBe(true);
+  });
+
   it("flags CHAIN_OUT_OF_ORDER for swapped issuance timestamps", () => {
     const key = generateKey();
     const pack = buildMultiRecordChain(3, key);

@@ -190,6 +190,38 @@ export function verifyProofChain(
     prevIssuedAtMs = currIssuedAtMs;
   }
 
+  // 4. Nonce uniqueness (CRYPTO-07). The platform enforces
+  // @@unique([orgId, nonce]); a repeated nonce inside a pack means a replayed
+  // or duplicated receipt — which the hash-chain walk alone won't catch if a
+  // duplicate is spliced in with a fresh beforeHash.
+  const seenNonce = new Map<string, number>();
+  let nonceReuse = 0;
+  for (let i = 0; i < records.length; i++) {
+    const nonce = records[i]!.payload.nonce;
+    const firstIdx = seenNonce.get(nonce);
+    if (firstIdx !== undefined) {
+      nonceReuse++;
+      steps.push({
+        target: `records[${i}].payload.nonce`,
+        kind: "chain_link",
+        status: "INVALID",
+        reason: "CHAIN_NONCE_REUSED",
+        message: `record[${i}] reuses a nonce first seen at record[${firstIdx}] — the platform enforces per-org nonce uniqueness; a repeat indicates a replayed or duplicated receipt`,
+        detail: { firstIndex: firstIdx, duplicateIndex: i },
+      });
+    } else {
+      seenNonce.set(nonce, i);
+    }
+  }
+  if (nonceReuse === 0) {
+    steps.push({
+      target: "records[].payload.nonce",
+      kind: "chain_link",
+      status: "VALID",
+      message: `all ${records.length} record nonces are unique`,
+    });
+  }
+
   const anyInvalid = steps.some((s) => s.status === "INVALID");
   return {
     status: anyInvalid ? "INVALID" : "VALID",
