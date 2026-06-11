@@ -89,6 +89,22 @@ export function verifySettlementReconciliation(
     linesByMeter.set(line.meterRecordIdemKey, acc);
   }
 
+  // CRYPTO-04: recompute each meter's deterministic integer split exactly
+  // (floor per share + residual reabsorbed into the largest-share line, ties
+  // broken by the smaller partyRole) — the byte-for-byte mirror of the
+  // platform's `splitGrossDeterministically` — and require exact-cent
+  // equality per line. No tolerance band: production amounts sum to gross by
+  // construction, so any deviation is a real discrepancy.
+  const expectedAmountByLine = new Map<SettlementLine, number>();
+  for (const [meterIdem, group] of linesByMeter) {
+    const gross = settlement.meterGross[meterIdem];
+    if (gross === undefined) continue; // flagged per-line below
+    const sharesScaled = group.map((l) => parseDecimalToScaled(l.share, 6));
+    const partyRoles = group.map((l) => l.partyRole);
+    const split = deterministicSplitCents(gross, sharesScaled, partyRoles);
+    group.forEach((l, idx) => expectedAmountByLine.set(l, split[idx]!));
+  }
+
   // 2..5: walk every line.
   let computedGrossCents = 0;
   let computedNetToTenantCents = 0;
@@ -131,7 +147,7 @@ export function verifySettlementReconciliation(
       });
     }
 
-    // 4. amountCents reconstruction.
+    // 4. amountCents reconstruction — exact-cent (CRYPTO-04).
     const gross = settlement.meterGross[line.meterRecordIdemKey];
     if (gross === undefined) {
       steps.push({
@@ -143,44 +159,31 @@ export function verifySettlementReconciliation(
       });
       continue;
     }
-    // We project the un-rounded amount as a bigint of millicents
-    // and round to cents at the line level. The remainder reabsorbs
-    // into the largest-share line of the same meter — handled below
-    // when we walk per-meter groups.
-    // For per-line equality we use floor of (gross * shareScaled / 1_000_000).
-    const shareScaled = parseDecimalToScaled(line.share, 6);
-    const expectedUnrounded = (BigInt(gross) * shareScaled) / 1_000_000n;
-    const expected = Number(expectedUnrounded);
-    if (expected !== line.amountCents) {
-      // Allow ±1 cent off only for non-largest-share lines (rounding
-      // residual). The largest-share line takes the residual; we
-      // detect "largest-share line" by looking up the group.
-      const group = linesByMeter.get(line.meterRecordIdemKey) ?? [];
-      const isLargest = group.every(
-        (g) => parseDecimalToScaled(g.share, 6) <= shareScaled,
-      );
-      if (!isLargest || Math.abs(expected - line.amountCents) > group.length) {
-        steps.push({
-          target: `settlement.lines[${i}].amountCents`,
-          kind: "settlement_line",
-          status: "INVALID",
-          reason: "SETTLEMENT_AMOUNT_MISMATCH",
-          message: `amountCents does not match floor(grossCents * share) within rounding tolerance`,
-          detail: {
-            expected,
-            actual: line.amountCents,
-            gross,
-            share: line.share,
-          },
-        });
-        continue;
-      }
+    // Compare against the deterministic integer split recomputed above —
+    // the largest-share line carries the rounding residual exactly, every
+    // other line is `floor(gross * share)`. No tolerance band.
+    const expected = expectedAmountByLine.get(line);
+    if (expected === undefined || expected !== line.amountCents) {
+      steps.push({
+        target: `settlement.lines[${i}].amountCents`,
+        kind: "settlement_line",
+        status: "INVALID",
+        reason: "SETTLEMENT_AMOUNT_MISMATCH",
+        message: `amountCents does not equal the deterministic integer split of grossCents by share`,
+        detail: {
+          expected: expected ?? null,
+          actual: line.amountCents,
+          gross,
+          share: line.share,
+        },
+      });
+      continue;
     }
     steps.push({
       target: `settlement.lines[${i}].amountCents`,
       kind: "settlement_line",
       status: "VALID",
-      message: `amountCents=${line.amountCents} matches gross=${gross} * share=${line.share}`,
+      message: `amountCents=${line.amountCents} matches deterministic split of gross=${gross} by share=${line.share}`,
     });
     computedGrossCents += line.amountCents; // sum across lines
     if (line.partyRole === "TENANT") computedNetToTenantCents += line.amountCents;
@@ -254,6 +257,39 @@ function pushTotalCheck(
       message: `${label}=${claimed} reconciles`,
     });
   }
+}
+
+/**
+ * deterministicSplitCents — the auditor's mirror of the platform's
+ * `splitGrossDeterministically` (apps/api settlementService.ts). Floors each
+ * share's slice as `floor(gross * shareScaled / 1_000_000)` and reabsorbs the
+ * residual (`gross − Σ floors`) into the largest-share line, ties broken by
+ * the smaller partyRole (lexical). Deterministic and sums to exactly `gross`,
+ * so settlement amounts are recomputable to the exact cent.
+ */
+function deterministicSplitCents(
+  gross: number,
+  sharesScaled: bigint[],
+  partyRoles: string[],
+): number[] {
+  const floors = sharesScaled.map((s) =>
+    Number((BigInt(gross) * s) / 1_000_000n),
+  );
+  const remainder = gross - floors.reduce((a, b) => a + b, 0);
+  if (remainder !== 0 && floors.length > 0) {
+    let target = 0;
+    for (let i = 1; i < sharesScaled.length; i++) {
+      if (
+        sharesScaled[i]! > sharesScaled[target]! ||
+        (sharesScaled[i]! === sharesScaled[target]! &&
+          partyRoles[i]! < partyRoles[target]!)
+      ) {
+        target = i;
+      }
+    }
+    floors[target]! += remainder;
+  }
+  return floors;
 }
 
 // ─────────────────────────────────────────────────────────────────────
