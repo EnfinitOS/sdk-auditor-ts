@@ -95,6 +95,20 @@ export function settlementIdemKey(
 }
 
 /**
+ * SettlementLine idemKey reconstruction for legacy **settlement.v1** packs —
+ * the 2-field `sha256(meterRecordIdemKey|partyRole)`. Kept so the auditor can
+ * still verify proof packs sealed before the CRYPTO-01 / settlement.v2
+ * 3-field key landed (VER-02). The caller selects v1 vs v2 by the summary's
+ * `schemaVersion`; do not use this for v2 packs.
+ */
+export function settlementIdemKeyV1(
+  meterRecordIdemKey: string,
+  partyRole: string,
+): string {
+  return sha256Hex(`${meterRecordIdemKey}|${partyRole}`);
+}
+
+/**
  * Constant-time byte comparison. Used wherever the SDK compares
  * cryptographic material (signatures, hashes) — avoids leaking
  * partial-match timing to a hostile auditor.

@@ -39,7 +39,7 @@
 // version in the schema so a platform-side bump triggers an explicit
 // audit-SDK upgrade.
 
-import { settlementIdemKey } from "./hashing";
+import { settlementIdemKey, settlementIdemKeyV1 } from "./hashing";
 import {
   SDK_VERSION,
   type AuditStep,
@@ -123,20 +123,25 @@ export function verifySettlementReconciliation(
       });
       continue;
     }
-    // 5. idemKey reconstruction (settlement.v2: 3-field, content-hash based).
-    const expectedIdem = settlementIdemKey(
-      line.meterRecordIdemKey,
-      line.partyRole,
-      line.ledgerAccountCode,
-    );
+    // 5. idemKey reconstruction — VERSION-AWARE (VER-02). settlement.v2 uses
+    // the 3-field content-hash key (CRYPTO-01); legacy settlement.v1 packs
+    // used the 2-field `sha256(meterIdemKey|partyRole)`. Selecting by the
+    // summary's schemaVersion keeps old proof packs verifiable instead of
+    // flagging every v1 line as a mismatch.
+    const isV2 = settlement.schemaVersion === "settlement.v2";
+    const expectedIdem = isV2
+      ? settlementIdemKey(line.meterRecordIdemKey, line.partyRole, line.ledgerAccountCode)
+      : settlementIdemKeyV1(line.meterRecordIdemKey, line.partyRole);
     if (line.idemKey !== expectedIdem) {
       steps.push({
         target: `settlement.lines[${i}].idemKey`,
         kind: "settlement_line",
         status: "INVALID",
         reason: "SETTLEMENT_IDEM_KEY_MISMATCH",
-        message: `settlement-line idemKey does not equal sha256(meterIdemKey|partyRole|ledgerAccountCode)`,
-        detail: { expected: expectedIdem, actual: line.idemKey },
+        message: isV2
+          ? `settlement-line idemKey does not equal sha256(meterIdemKey|partyRole|ledgerAccountCode)`
+          : `settlement-line idemKey does not equal sha256(meterIdemKey|partyRole)`,
+        detail: { expected: expectedIdem, actual: line.idemKey, schemaVersion: settlement.schemaVersion },
       });
     } else {
       steps.push({
