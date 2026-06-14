@@ -227,9 +227,19 @@ deterministic formula the platform uses. Reports
 
 ### `verifySettlementReconciliation` (settlementAudit.ts)
 
-Re-derives settlement lines from metering using the share table.
-Reports `SETTLEMENT_AMOUNT_MISMATCH` / `SETTLEMENT_SHARE_SUM_NOT_ONE` /
+Re-derives each settlement line's amount from the metering totals and the
+version-pinned share table (the same deterministic floor-plus-residual
+split the platform runs), and checks that per-meter shares sum to 1 and
+that the gross / net / fee totals reconcile from the lines. Reports
+`SETTLEMENT_AMOUNT_MISMATCH` / `SETTLEMENT_SHARE_SUM_NOT_ONE` /
 `SETTLEMENT_TOTAL_MISMATCH` on any divergence.
+
+**Recompute boundary:** the auditor re-derives the split and the totals.
+VAT, withholding, per-counterparty caps/floors, and FX conversion are
+checked against the rule snapshot pinned in the settlement — they are
+applied as recorded, not re-derived from external tax or FX-rate sources.
+So a settlement with tax or FX configured is verified against its own
+pinned inputs; full end-to-end recomputation covers the plain split path.
 
 ### `verifyProvenanceChain` + `verifyProvenanceRecord` (provenance.ts)
 

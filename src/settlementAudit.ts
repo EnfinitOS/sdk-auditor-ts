@@ -29,15 +29,16 @@
 //
 // Rounding policy
 // ───────────────
-// The platform rounds amounts to the nearest minor unit using
-// banker's rounding (half-to-even) at the line level, with the
-// remainder reabsorbed into the largest-share line — this prevents
-// rounding gaps from corrupting downstream double-entry posting.
+// The platform splits each line as `floor(gross * shareScaled / 1e6)` and
+// reabsorbs the residual (`gross − Σ floors`) into the largest-share line,
+// ties broken by the smaller partyRole (lexical). This sums to exactly the
+// gross with no rounding gap, so downstream double-entry posting stays
+// balanced. (Earlier versions used banker's half-to-even rounding; that was
+// removed because it diverged from the engine — see deterministicSplitCents.)
 //
-// The auditor implements the same rule. The risk of a stale auditor
-// SDK is the rounding policy changes server-side; we declare our
-// version in the schema so a platform-side bump triggers an explicit
-// audit-SDK upgrade.
+// The auditor implements the identical rule. The risk of a stale auditor
+// SDK is the policy changing server-side; we declare our version in the
+// schema so a platform-side bump triggers an explicit audit-SDK upgrade.
 
 import { settlementIdemKey, settlementIdemKeyV1 } from "./hashing";
 import {
