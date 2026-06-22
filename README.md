@@ -10,6 +10,18 @@ wire shapes, reason codes, and verdicts:
 [Python](https://github.com/EnfinitOS/sdk-auditor-py) ·
 [Rust](https://github.com/EnfinitOS/sdk-auditor-rs).
 
+## What's new in 0.0.3
+
+**Settlement verification is now `settlement.v2` (BREAKING).** The settlement
+idemKey is 3-field and content-hash based (CRYPTO-01):
+`settlementIdemKey(meterRecordIdemKey, partyRole, ledgerAccountCode)` =
+`sha256(meterRecordIdemKey|partyRole|ledgerAccountCode)`, matching the
+production settlement engine. The previous 2-field
+`sha256(meterRecordIdemKey|partyRole)` could not be independently recomputed,
+so **packs must be re-issued under `settlement.v2` to verify** —
+`SettlementSummary.schemaVersion` now accepts `"settlement.v2"`. See
+[CHANGELOG.md](https://github.com/EnfinitOS/sdk-auditor-ts/blob/main/CHANGELOG.md).
+
 ## What's new in 0.0.2
 
 **Rights-provenance write-time signature verification.** The platform
@@ -94,8 +106,9 @@ or, in a regulator's air-gapped environment:
 npm install @enfinitos/sdk-auditor --offline --no-fund
 ```
 
-The SDK has one runtime dependency: [`@noble/ed25519`](https://github.com/paulmillr/noble-ed25519)
-— a small, well-audited, zero-native-dep Ed25519 implementation. The
+The SDK has two runtime dependencies: [`@noble/ed25519`](https://github.com/paulmillr/noble-ed25519)
+(Ed25519 signatures) and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes)
+(SHA-256/512) — both small, well-audited, zero-native-dep. The
 SDK falls back to Node's built-in `crypto.verify` when the noble
 package isn't resolvable.
 
@@ -345,7 +358,7 @@ The stable reason codes:
 | `SETTLEMENT_LINE_FOR_UNKNOWN_METER` | settlement | meterRecordIdemKey not in metering. |
 | `SETTLEMENT_SHARE_SUM_NOT_ONE` | settlement | Per-meter shares don't sum to 1. |
 | `SETTLEMENT_AMOUNT_MISMATCH` | settlement | amountCents doesn't recompute. |
-| `SETTLEMENT_IDEM_KEY_MISMATCH` | settlement | idemKey != sha256(meterIdemKey\|partyRole). |
+| `SETTLEMENT_IDEM_KEY_MISMATCH` | settlement | idemKey != sha256(meterIdemKey\|partyRole\|ledgerAccountCode). |
 | `SETTLEMENT_TOTAL_MISMATCH` | settlement | totals don't sum from lines. |
 | `SETTLEMENT_ORG_MISMATCH` | settlement | settlement.orgId != metering.orgId. |
 | `PROVENANCE_SIGNATURE_INVALID` | provenance | Ed25519 verify failed on a rights-provenance record. |
