@@ -10,7 +10,7 @@ wire shapes, reason codes, and verdicts:
 [Python](https://github.com/EnfinitOS/sdk-auditor-py) ·
 [Rust](https://github.com/EnfinitOS/sdk-auditor-rs).
 
-## What's new in 0.0.3
+## What's new in 0.0.4
 
 **Settlement verification is version-aware (`settlement.v1` + `settlement.v2`).**
 The current settlement idemKey is 3-field and content-hash based (CRYPTO-01):
@@ -20,8 +20,13 @@ production settlement engine. Packs stamped `settlement.v1` (sealed before the
 CRYPTO-01 flip) still verify: the auditor selects the legacy 2-field
 `sha256(meterRecordIdemKey|partyRole)` reconstruction by the summary's
 `schemaVersion` (VER-02), so genuine historical evidence is never reported as
-tampered. **Signed exports** (`?export=true` metering/settlement envelopes)
-verify offline via `verifySignedExport`. See
+tampered. **Cross-pack chains** verify via the new `priorAfterHash`
+argument on `verifyProofChain` / field on `AuditBundle` — pass the previous
+pack's tail `afterHash` when verifying a later pack in a tenant's chain (the
+platform seals packs in series). **Signed exports** (`?export=true`
+metering/settlement envelopes) verify offline via `verifySignedExport`.
+(0.0.3 was tagged in-repo but never reached any registry; its settlement.v2
+changes ship here.) See
 [CHANGELOG.md](https://github.com/EnfinitOS/sdk-auditor-ts/blob/main/CHANGELOG.md).
 
 ## What's new in 0.0.2
