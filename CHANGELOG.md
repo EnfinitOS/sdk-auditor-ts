@@ -6,6 +6,30 @@ PyPI) and Rust (`enfinitos-sdk-auditor` on crates.io) ports track it
 release-for-release with identical wire shapes, reason codes, and
 verdicts.
 
+## 0.0.4 — 2026-07-02
+
+### Added
+
+- **Signed-export verification (`verifySignedExport`)** — verifies the
+  `export.v1` envelopes the platform issues from
+  `GET /v1/metering?export=true` and `GET /v1/settlement?export=true`:
+  key-directory lookup (validity window anchored at `exportedAt`),
+  payload re-canonicalisation (`canonicalSortKeys`), transparency-hash
+  check, and Ed25519 verification over `${payloadCanonical}|${keyId}`.
+  New reason code `EXPORT_PAYLOAD_HASH_MISMATCH`; all other failures
+  reuse the existing envelope / key / canonicalisation / signature
+  codes. After the signature gate passes, feed `export.payload` to
+  `verifyMeteringProjection` / `verifySettlementReconciliation` for the
+  content checks.
+
+### Publishing note
+
+- **The published 0.0.2 packages fail every settlement.v2 pack the
+  platform now issues** (every line flags `SETTLEMENT_IDEM_KEY_MISMATCH`
+  under the old 2-field key). 0.0.4 is the minimum version that verifies
+  current packs — republish npm/PyPI/crates together and treat 0.0.2/0.0.3
+  as superseded.
+
 ## 0.0.3 — 2026-06-10
 
 ### Changed (BREAKING — settlement.v2)

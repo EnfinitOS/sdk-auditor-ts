@@ -62,7 +62,7 @@ export type EnvelopeVersion = (typeof SUPPORTED_ENVELOPE_VERSIONS)[number];
  * can pin "I verified this pack with SDK X.Y.Z" — important if a
  * later SDK release fixes a verification bug.
  */
-export const SDK_VERSION = "0.0.3" as const;
+export const SDK_VERSION = "0.0.4" as const;
 
 /**
  * Algorithm identifiers the SDK understands. We only ship Ed25519
@@ -632,6 +632,11 @@ export type AuditReasonCode =
   | "PROVENANCE_CANONICAL_MISMATCH"
   | "PROVENANCE_UNSIGNED_RECORD"
   | "PROVENANCE_ORG_MISMATCH"
+  // Signed exports (export.v1 envelopes from /v1/metering?export=true and
+  // /v1/settlement?export=true). Additive — reuses the envelope / signature /
+  // canonicalisation / key codes above; only the hash-transparency check needs
+  // its own code.
+  | "EXPORT_PAYLOAD_HASH_MISMATCH"
   // Keys
   | "KEYS_FETCH_FAILED"
   | "KEYS_RESPONSE_MALFORMED";

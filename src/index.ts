@@ -166,6 +166,17 @@ export { verifyMeteringProjection } from "./meteringAudit";
 
 export { verifySettlementReconciliation } from "./settlementAudit";
 
+// Signed exports (export.v1) — verify the platform's signed metering /
+// settlement exports (`?export=true`) offline. This is the signature gate;
+// pass `export.payload` on to verifyMeteringProjection /
+// verifySettlementReconciliation for the content checks.
+export { verifySignedExport } from "./exports";
+export type {
+  SignedExport,
+  SignedExportAuditReport,
+  VerifySignedExportOptions,
+} from "./exports";
+
 export {
   loadKeyDirectory,
   KeyDirectory,

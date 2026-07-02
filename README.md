@@ -12,14 +12,16 @@ wire shapes, reason codes, and verdicts:
 
 ## What's new in 0.0.3
 
-**Settlement verification is now `settlement.v2` (BREAKING).** The settlement
-idemKey is 3-field and content-hash based (CRYPTO-01):
+**Settlement verification is version-aware (`settlement.v1` + `settlement.v2`).**
+The current settlement idemKey is 3-field and content-hash based (CRYPTO-01):
 `settlementIdemKey(meterRecordIdemKey, partyRole, ledgerAccountCode)` =
 `sha256(meterRecordIdemKey|partyRole|ledgerAccountCode)`, matching the
-production settlement engine. The previous 2-field
-`sha256(meterRecordIdemKey|partyRole)` could not be independently recomputed,
-so **packs must be re-issued under `settlement.v2` to verify** —
-`SettlementSummary.schemaVersion` now accepts `"settlement.v2"`. See
+production settlement engine. Packs stamped `settlement.v1` (sealed before the
+CRYPTO-01 flip) still verify: the auditor selects the legacy 2-field
+`sha256(meterRecordIdemKey|partyRole)` reconstruction by the summary's
+`schemaVersion` (VER-02), so genuine historical evidence is never reported as
+tampered. **Signed exports** (`?export=true` metering/settlement envelopes)
+verify offline via `verifySignedExport`. See
 [CHANGELOG.md](https://github.com/EnfinitOS/sdk-auditor-ts/blob/main/CHANGELOG.md).
 
 ## What's new in 0.0.2
